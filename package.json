@@ -1,0 +1,32 @@
+{
+  "name": "gamescout",
+  "version": "2.1.0",
+  "private": true,
+  "description": "GameScout: asistente de videojuegos con precios de Steam en Perú, ofertas, noticias y biblioteca personal (DeepSeek + Gemini)",
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "keywords": [
+    "gemini",
+    "express",
+    "sse",
+    "sqlite",
+    "chat",
+    "steam",
+    "cheapshark",
+    "function-calling"
+  ],
+  "license": "ISC",
+  "dependencies": {
+    "@google/genai": "^2.22.0",
+    "better-sqlite3": "^13.0.3",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1"
+  }
+}

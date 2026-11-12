@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>GameScout · Tu copiloto de videojuegos</title>
+    <meta
+      name="description"
+      content="Asistente de videojuegos con precios reales de Steam en Perú, ofertas, noticias y biblioteca personal."
+    />
+    <link rel="stylesheet" href="./styles.css" />
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+  </head>
+  <body>
+    <div class="app">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-mark">GS</div>
+          <div>
+            <strong>GameScout</strong>
+            <span>Precios · Ofertas · Biblioteca</span>
+          </div>
+        </div>
+
+        <button id="btn-nueva" class="btn-nueva" type="button">
+          <span aria-hidden="true">+</span> Nueva conversación
+        </button>
+
+        <nav id="lista-sesiones" class="lista-sesiones" aria-label="Conversaciones"></nav>
+
+        <footer class="sidebar-footer">
+          <span class="punto" aria-hidden="true"></span>
+          <span id="modelo">conectando…</span>
+        </footer>
+      </aside>
+
+      <main class="chat">
+        <header class="chat-header">
+          <h1 id="titulo-chat">Nueva conversación</h1>
+          <div class="ia-selector">
+            <select id="proveedor-ia" class="select-ia" aria-label="Motor de IA"></select>
+            <select id="nivel-ia" class="select-ia" aria-label="Nivel de razonamiento" hidden></select>
+          </div>
+        </header>
+
+        <div id="ventana-chat" class="mensajes" role="log" aria-live="polite">
+          <section class="bienvenida">
+            <div class="bienvenida-icono" aria-hidden="true">🎮</div>
+            <h2>¿Qué jugamos hoy?</h2>
+            <p>
+              Precios reales de Steam en soles, ofertas en otras tiendas, noticias y tu
+              biblioteca personal. Pregúntame lo que quieras.
+            </p>
+            <div class="sugerencias">
+              <button type="button" class="chip">¿Qué juegos están en oferta hoy?</button>
+              <button type="button" class="chip">¿Cuánto cuesta Hades en Perú?</button>
+              <button type="button" class="chip">Recomiéndame un roguelike</button>
+              <button type="button" class="chip">Muéstrame mi biblioteca</button>
+            </div>
+          </section>
+        </div>
+
+        <div class="composer">
+          <form id="form-chat" class="composer-form">
+            <textarea
+              id="ingreso"
+              rows="1"
+              placeholder="Escribe tu mensaje…"
+              title="Enter para enviar · Shift+Enter para salto de línea"
+              aria-label="Mensaje"
+            ></textarea>
+            <button id="btn-enviar" class="btn-enviar" type="submit" disabled>Enviar</button>
+            <button id="btn-detener" class="btn-detener" type="button" hidden>Detener</button>
+          </form>
+          <p id="estado" class="estado" role="status"></p>
+        </div>
+      </main>
+    </div>
+
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/18.0.13/lib/marked.umd.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.4.15/purify.min.js"></script>
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.0/styles/github-dark.min.css"
+    />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.0/highlight.min.js"></script>
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>
