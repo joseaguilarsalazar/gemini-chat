@@ -3,6 +3,7 @@ import { getPrefs, setPrefs } from "../repositories/prefs.js";
 import { listarTiendas } from "../integrations/cheapshark.js";
 import { MONEDAS, TIENDAS_OFICIALES } from "../constants.js";
 import { usuarioIdDe } from "../auth/context.js";
+import { estadoCanales, enviarNotificacion } from "../services/notifications.js";
 
 const router = Router();
 
@@ -13,6 +14,7 @@ router.get("/preferencias", (req, res) => {
     ...getPrefs(usuarioId),
     tiendasOficiales: TIENDAS_OFICIALES,
     monedas: MONEDAS,
+    canales: estadoCanales(),
   });
 });
 
@@ -80,7 +82,35 @@ router.patch("/preferencias", (req, res) => {
     ...setPrefs(usuarioId, cambios),
     tiendasOficiales: TIENDAS_OFICIALES,
     monedas: MONEDAS,
+    canales: estadoCanales(),
   });
+});
+
+// -------------------------------------------- POST /api/notificaciones/prueba
+router.post("/notificaciones/prueba", async (req, res) => {
+  const usuarioId = usuarioIdDe(req);
+  const prefs = getPrefs(usuarioId);
+
+  try {
+    const enviados = await enviarNotificacion({
+      prefs,
+      asunto: "GameScout: prueba de notificaciones",
+      texto: "Si recibes este mensaje, las notificaciones de GameScout están funcionando. 🎮",
+    });
+
+    if (enviados.length === 0) {
+      return res.status(400).json({
+        error:
+          "No hay un canal configurado para tu usuario. Agrega tu chat ID de Telegram " +
+          "o tu correo en Ajustes, y configura el bot/SMTP en el .env.",
+      });
+    }
+
+    res.json({ ok: true, enviados });
+  } catch (error) {
+    console.error("[notify] prueba:", error.message);
+    res.status(502).json({ error: "No se pudo enviar la notificación." });
+  }
 });
 
 // ----------------------------------------------------------- GET /api/tiendas

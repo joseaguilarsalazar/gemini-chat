@@ -13,6 +13,12 @@ const porId = db.prepare(`
   WHERE id = ?
 `);
 
+const porUsuarioCredenciales = db.prepare(`
+  SELECT id, usuario, nombre, hash, salt
+  FROM usuarios
+  WHERE usuario = ?
+`);
+
 const insertar = db.prepare(`
   INSERT INTO usuarios (id, usuario, nombre, hash, salt)
   VALUES (?, ?, ?, ?, ?)
@@ -29,6 +35,10 @@ export const buscarPorUsuario = (usuario) => porUsuario.get(usuario) ?? null;
 
 export const buscarPorId = (id) => porId.get(id) ?? null;
 
+/** Incluye hash y salt; solo para autenticación. */
+export const buscarCredencialesPorUsuario = (usuario) =>
+  porUsuarioCredenciales.get(usuario) ?? null;
+
 export const crearUsuario = ({ id, usuario, nombre, hash, salt }) =>
   insertar.run(id, usuario, nombre, hash, salt);
 
@@ -41,4 +51,19 @@ export const contarUsuarios = () => contar.get(USUARIO_DEMO).total;
 export const reclamarDatosAnonimos = db.transaction((usuarioId) => {
   db.prepare("UPDATE biblioteca SET usuario_id = ? WHERE usuario_id IS NULL").run(usuarioId);
   db.prepare("UPDATE sesiones SET usuario_id = ? WHERE usuario_id IS NULL").run(usuarioId);
+});
+
+/**
+ * El primer usuario registrado hereda los datos de la fase single-user
+ * (que vivían bajo el usuario interno "demo").
+ */
+export const reclamarDatosDemo = db.transaction((usuarioId) => {
+  db.prepare("UPDATE biblioteca SET usuario_id = ? WHERE usuario_id = ?").run(
+    usuarioId,
+    USUARIO_DEMO
+  );
+  db.prepare("UPDATE sesiones SET usuario_id = ? WHERE usuario_id = ?").run(
+    usuarioId,
+    USUARIO_DEMO
+  );
 });

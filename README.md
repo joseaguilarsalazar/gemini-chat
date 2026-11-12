@@ -37,6 +37,13 @@ conversación ni la biblioteca.
 - **Resumen diario** con alertas, ofertas, novedades y próximos lanzamientos.
 - **Notificaciones del navegador** cuando un deseo alcanza su precio objetivo.
 - **Ajustes**: moneda, tiendas preferidas, especificaciones del PC y canales de aviso.
+- **Cuentas locales**: registro e inicio de sesión con contraseña (scrypt) y sesión por cookie;
+  cada usuario tiene su propia biblioteca, conversaciones y preferencias.
+- **Historial de precios propio** con gráfico SVG y recomendación de compra.
+- **Vigilante de precios** en segundo plano: revisa los deseados cada 6 horas y registra snapshots.
+- **Alertas por Telegram o correo** (opcionales) cuando un juego alcanza su precio objetivo.
+- **Compatibilidad con Steam Deck** integrada en la ficha y en los requisitos.
+- **Resumen de reseñas**: porcentaje positivo, total, Metacritic y enlace a Steam.
 - **Comparación entre tiendas**: CheapShark aporta ofertas de ~35 tiendas en dólares y el mínimo histórico,
   con conversión referencial a soles.
 - **Ofertas del momento** filtradas por descuento y precio máximo.
@@ -70,6 +77,9 @@ npm start
 
 Abre http://localhost:3000
 
+La primera vez verás la pantalla de **crear cuenta**. Registra un usuario y tus datos
+(biblioteca, conversaciones y preferencias) quedarán asociados a esa cuenta.
+
 > **Windows:** si PowerShell bloquea `npm` por la política de ejecución de scripts,
 > usa `npm.cmd` (`npm.cmd install`, `npm.cmd start`).
 
@@ -99,6 +109,15 @@ Prueba cualquiera de estas frases:
 | `MAX_MESSAGE_LENGTH` | `4000` | Límite por mensaje |
 | `STEAM_CC` / `STEAM_LANG` | `pe` / `spanish` | Región e idioma de la tienda (precios en soles) |
 | `HTTP_TIMEOUT_MS` | `20000` | Timeout de las APIs externas |
+| `SESSION_DAYS` | `30` | Duración de la sesión de login |
+| `COOKIE_SECURE` | `false` | Marcar la cookie como Secure (usar con HTTPS) |
+| `PRICE_CHECK_INTERVAL_MS` | `21600000` | Frecuencia del vigilante de precios (6 h) |
+| `PRICE_CHECK_LIMIT` | `10` | Juegos revisados por usuario y pasada |
+| `PRICE_CHECK_DISABLED` | `false` | Desactiva el vigilante en desarrollo |
+| `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` | — | Alertas por Telegram (opcional) |
+| `SMTP_HOST` / `SMTP_PORT` / `SMTP_FROM` | — | Alertas por correo (opcional) |
+| `SMTP_USER` / `SMTP_PASS` / `SMTP_SECURE` | — | Credenciales SMTP |
+| `APP_URL` | `http://localhost:3000` | Enlace incluido en las notificaciones |
 
 ## Cómo funciona
 
@@ -169,6 +188,8 @@ OpenAI y acumula los `tool_calls` por índice; Gemini usa `functionDeclarations`
 | `ruleta_backlog` | Elige un juego al azar de la biblioteca | Biblioteca + Steam |
 | `dlc_juego` | DLC y ediciones con precios | Steam appdetails |
 | `resumen_diario` | Alertas, ofertas, noticias y lanzamientos | Todas las anteriores |
+| `historial_precios` | Snapshots propios + recomendación de compra | SQLite + Steam |
+| `resenas_juego` | Resumen de reseñas y enlace a Steam | SteamSpy + Steam |
 
 ### Widgets
 
@@ -186,6 +207,8 @@ OpenAI y acumula los `tool_calls` por índice; Gemini usa `functionDeclarations`
 | `dlc` | DLCs y ediciones con precios | — |
 | `plan` | Juegos elegidos para el tiempo disponible | — |
 | `digest` | Alertas, ofertas, noticias, próximos y oferta del día | Abrir enlaces |
+| `historial` | Gráfico SVG del historial de precios y recomendación | — |
+| `resenas` | Barra de positivas/negativas, total y Metacritic | Abrir reseñas en Steam |
 
 Los widgets guardados con el mensaje se reconstruyen al abrir una conversación antigua; los
 paneles de biblioteca se refrescan con el estado actual de la base de datos.
@@ -215,15 +238,26 @@ gemini-chat/
 │  │  ├─ openai.js              # conversión a JSON Schema para DeepSeek
 │  │  ├─ juegos.js              # herramientas de catálogo y precios
 │  │  ├─ biblioteca.js          # herramientas de biblioteca
+│  │  ├─ extras.js              # comparador, análisis, plan, DLC, historial…
 │  │  └─ index.js               # registro y ejecución tolerante a errores
 │  ├─ repositories/
+│  │  ├─ users.js               # cuentas
+│  │  ├─ authSessions.js        # sesiones web
+│  │  ├─ prefs.js               # moneda, tiendas, PC y canales
 │  │  ├─ sessions.js
 │  │  ├─ messages.js            # turnos + widgets
-│  │  └─ library.js             # CRUD de biblioteca
+│  │  ├─ library.js             # biblioteca por usuario
+│  │  └─ prices.js              # snapshots de precio
 │  ├─ routes/
+│  │  ├─ auth.routes.js
 │  │  ├─ chat.routes.js
-│  │  └─ library.routes.js
-│  ├─ services/libraryView.js   # vista compartida por chat y API
+│  │  ├─ library.routes.js
+│  │  ├─ prefs.routes.js
+│  │  ├─ alerts.routes.js
+│  │  └─ games.routes.js
+│  ├─ auth/                     # hash scrypt, cookies y middleware
+│  ├─ jobs/priceWatcher.js      # vigilante de precios
+│  ├─ services/                 # money, pricing, notifications, libraryView
 │  ├─ db/{index.js,schema.sql}
 │  ├─ http/sse.js
 │  └─ middleware/{validate,errors}.js
@@ -255,6 +289,12 @@ gemini-chat/
 | `GET` | `/api/tiendas` | Tiendas de CheapShark (con marca de oficial) |
 | `GET` | `/api/alertas` | Alertas de precio actuales |
 | `POST` | `/api/alertas/revisar` | Revisa precios y devuelve la biblioteca actualizada |
+| `POST` | `/api/auth/registro` | Crea una cuenta e inicia sesión |
+| `POST` | `/api/auth/login` | Inicia sesión |
+| `POST` | `/api/auth/logout` | Cierra sesión |
+| `GET` | `/api/auth/yo` | Usuario actual (o `autenticado:false`) |
+| `GET` | `/api/juegos/:appid/historial` | Snapshots de precio propios |
+| `POST` | `/api/notificaciones/prueba` | Envía una notificación de prueba |
 
 ### Cuerpo de `POST /api/chat`
 
@@ -303,18 +343,22 @@ Los errores posteriores al inicio del stream llegan como `{"type":"error","error
 ## Modelo de datos
 
 ```
-sesiones (id PK, titulo, creada, actualizada)
-   └─ 1:N mensajes (id PK, sesion_id FK, rol, texto, widgets JSON,
-                    proveedor, modelo, nivel, fecha)
+usuarios (id PK, usuario UNIQUE, nombre, hash, salt)
+   ├─ 1:N sesiones_web (token PK, usuario_id, expira)
+   ├─ 1:1 preferencias (moneda, tiendas, PC, canales)
+   ├─ 1:N sesiones (id PK, usuario_id, titulo, creada, actualizada)
+   │      └─ 1:N mensajes (id PK, sesion_id FK, rol, texto, widgets JSON,
+   │                       proveedor, modelo, nivel, fecha)
+   └─ 1:N biblioteca (usuario_id + appid UNIQUE, nombre, estado, puntuación,
+                      nota, precios, etiquetas, tiempo_medio)
 
-biblioteca (appid PK, nombre, imagen, estado, puntuacion, nota,
-            precio_objetivo, precio_actual, agregado, actualizado)
+precios_historial (id PK, appid, precio_pen, precio_usd, fuente, fecha)
 ```
 
 `mensajes.widgets` guarda los widgets que acompañaron cada respuesta. `mensajes.proveedor`,
 `modelo` y `nivel` permiten mostrar qué motor generó cada respuesta al recuperar el historial.
-`precio_objetivo` y `precio_actual` están en soles; `precio_actual` se actualiza cuando el chat
-consulta el juego.
+`biblioteca` y `sesiones` están aisladas por `usuario_id`; `precios_historial` es global porque
+el precio de un juego es el mismo para todos. `precio_objetivo` y `precio_actual` están en soles.
 
 ## Datos y atribución
 
@@ -350,25 +394,48 @@ Las APIs de Steam no son oficiales para terceros: pueden cambiar sin aviso.
   cada respuesta.
 - **DeepSeek por defecto** cuando su clave está configurada, por velocidad; si solo hay clave
   de Gemini, el motor inicial es Gemini.
+- **Cuentas locales**: contraseña con scrypt + salt, sesión por cookie `HttpOnly`/`SameSite=Lax`
+  y todas las consultas de biblioteca/sesiones filtradas por `usuario_id`. El primer registro
+  hereda los datos anónimos de la fase single-user.
+- **Historial de precios propio**: cada consulta o revisión guarda un snapshot (máximo uno cada
+  6 h); el gráfico y la recomendación se calculan sobre esos datos, no sobre un histórico ajeno.
+- **Vigilante de precios** cada 6 h por defecto; revisa solo usuarios con deseados y notifica
+  únicamente las alertas nuevas.
+- **Notificaciones opcionales**: Telegram (bot global + chat ID por usuario) y correo (SMTP);
+  si no están configurados, la app sigue funcionando y lo indica en Ajustes.
+- **Steam Deck y reseñas**: la compatibilidad sale del endpoint público de Deck; las reseñas son
+  un resumen agregado porque Steam no expone los textos por su API pública.
 
 ## Verificación realizada
 
 - Arranque, `/api/health`, frontend estático y SSE de punta a punta.
 - Function calling en vivo con **DeepSeek** (respuesta en ~4 s) y con **Gemini**: `buscar_juegos`
   → widget → respuesta en español con el precio real.
-- Las 12 herramientas ejecutadas individualmente contra las APIs reales.
+- Las **29 herramientas** ejecutadas contra las APIs reales (incluidas historial y reseñas).
 - CRUD de biblioteca (alta, cambio de estado, precio objetivo, alerta, borrado) y validaciones 400/404.
-- Render de los 5 tipos de widget en navegador, sin errores de consola.
+- Render de los **14 tipos de widget** en navegador, sin errores de consola.
 - Persistencia: recarga de conversación con widgets, motor y nivel; sincronización del panel con la base.
 - Selector de IA: DeepSeek/medio por defecto, cambio a Gemini, nivel oculto para Gemini y
   preferencia conservada en `localStorage`.
+- Autenticación: registro, login, logout, sesión persistente, `401` sin cookie y aislamiento entre
+  dos usuarios (biblioteca y conversaciones independientes).
+- Historial propio: snapshots, gráfico SVG, mínimo/promedio/actual y recomendación.
+- Vigilante de precios ejecutado manualmente: 3 juegos revisados, snapshots guardados, sin errores.
+- Steam Deck: Hades reportado como **Verificado** en ficha y requisitos.
+- Notificaciones: prueba sin canales configurados devuelve un `400` explicativo (comportamiento esperado).
 
 ## Limitaciones
 
-- Sin autenticación: la biblioteca es global para la instancia (pensado para uso local/demo).
-- Sin rate limiting propio; la cuota la controlan DeepSeek/Google.
+- Instancia local de un solo proceso: no hay despliegue horizontal ni sesiones compartidas.
+- No hay recuperación de contraseña ni verificación de correo; el registro es local.
+- Las cookies no llevan `Secure` por defecto (pensado para HTTP local); actívalo con
+  `COOKIE_SECURE=true` detrás de HTTPS.
+- El rate limiting solo cubre intentos de login (en memoria); el resto de la API no tiene límites propios.
+- Steam no expone reseñas individuales por su API pública: se muestra el resumen y un enlace a Steam.
+- El historial de precios es propio y empieza vacío; no es el histórico completo de Steam.
+- Telegram y correo requieren configurar el bot/SMTP en `.env` y el chat ID/correo en Ajustes.
 - Solo PC/Steam para precios y catálogo; consolas no están cubiertas.
-- El historial se recorta por cantidad de mensajes, no por tokens.
+- El historial de chat se recorta por cantidad de mensajes, no por tokens.
 - La API de DeepSeek documenta `low/high/max`; `medium` se envía y es aceptado, pero su
   equivalencia exacta la define el proveedor.
 - `better-sqlite3` es un módulo nativo: en Docker necesita herramientas de compilación si no hay
@@ -376,9 +443,9 @@ Las APIs de Steam no son oficiales para terceros: pueden cambiar sin aviso.
 
 ## Próximos pasos
 
-1. Autenticación simple (cookie firmada) y biblioteca por usuario.
-2. Job diario que revise precios objetivo y notifique (correo o Telegram).
-3. Historial de precios propio (guardar snapshots) y gráfico de evolución.
-4. Comparar dos o tres juegos en un solo widget.
-5. Tests de API con `supertest` y del repositorio con SQLite en memoria.
-6. Dockerfile y despliegue.
+1. Tests de API con `supertest` (auth, biblioteca, alertas) y del repositorio con SQLite en memoria.
+2. Recuperación de contraseña y verificación de correo.
+3. Predicción de precio con más historial y estacionalidad de descuentos.
+4. Dockerfile + despliegue con HTTPS y cookies seguras.
+5. Exportar conversaciones y compartir un resumen.
+6. Más proveedores de IA o modelos locales.

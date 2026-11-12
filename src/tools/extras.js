@@ -2,6 +2,7 @@ import * as steam from "../integrations/steam.js";
 import * as cheapshark from "../integrations/cheapshark.js";
 import * as steamspy from "../integrations/steamspy.js";
 import * as library from "../repositories/library.js";
+import * as prices from "../repositories/prices.js";
 import { tiendasPermitidas } from "../repositories/prefs.js";
 import { crearMoneda } from "../services/money.js";
 import { ofertasBiblioteca, detalles as fichaJuego } from "./juegos.js";
@@ -170,7 +171,10 @@ export const analisis = async (_args, contexto) => {
 
 // ---------------------------------------------------------------- requisitos_pc
 export const requisitosPc = async ({ appid }, contexto) => {
-  const ficha = await steam.detalles(appid);
+  const [ficha, deck] = await Promise.all([
+    steam.detalles(appid),
+    steam.compatibilidadDeck(appid),
+  ]);
   const dinero = await crearMoneda(contexto?.moneda);
   const pc = contexto?.prefs?.pc ?? { cpu: "", gpu: "", ram: "", so: "" };
 
@@ -194,6 +198,7 @@ export const requisitosPc = async ({ appid }, contexto) => {
       tienePc,
       edadMinima: ficha.edadMinima ?? undefined,
       clasificaciones: ficha.clasificaciones.slice(0, 2),
+      steamDeck: deck?.etiqueta ?? undefined,
       nota: tienePc
         ? "Compara las especificaciones del usuario con los requisitos y da un veredicto claro."
         : "El usuario no guardó su PC; pídele que la configure en Ajustes para un veredicto exacto.",
@@ -208,6 +213,7 @@ export const requisitosPc = async ({ appid }, contexto) => {
           requisitos: ficha.requisitos,
           pc,
           tienePc,
+          deck: deck ?? null,
           precioTexto: dinero.desdePEN((ficha.precio.final ?? 0) / 100),
         },
       },
@@ -486,5 +492,134 @@ export const resumenDiario = async (_args, contexto) => {
         datos: { alertas, ofertas, noticias, proximos, ofertaDelDia },
       },
     ],
+  };
+};
+
+// ---------------------------------------------------------------- historial_precios
+export const historialPrecios = async ({ appid, dias = 90 }, contexto) => {
+  const ficha = await steam.detalles(appid);
+  const dinero = await crearMoneda("PEN");
+
+  if (ficha.precio.final != null) {
+    prices.registrarPrecio({
+      appid,
+      precioPEN: ficha.precio.final / 100,
+      fuente: "historial",
+    });
+  }
+
+  let puntos = prices.historial(appid, dias).filter((p) => p.precioPEN != null);
+  let validos = puntos.map((p) => ({ fecha: p.fecha, precio: Number(p.precioPEN) }));
+
+  if (validos.length === 0) {
+    return {
+      respuesta: {
+        nombre: ficha.nombre,
+        mensaje:
+          "Aún no hay historial de precios. Se irá construyendo con cada revisión.",
+      },
+      widgets: [],
+    };
+  }
+
+  const valores = validos.map((p) => p.precio);
+  const minimo = Math.min(...valores);
+  const maximo = Math.max(...valores);
+  const actual =
+    ficha.precio.final != null ? ficha.precio.final / 100 : valores[valores.length - 1];
+  const promedio = valores.reduce((suma, valor) => suma + valor, 0) / valores.length;
+
+  let recomendacion;
+  if (actual <= minimo * 1.02) {
+    recomendacion = { nivel: "minimo", texto: "Está en su mínimo registrado" };
+  } else if (actual <= promedio * 0.9) {
+    recomendacion = { nivel: "bueno", texto: "Buen precio frente a tu historial" };
+  } else if (actual >= maximo * 0.95) {
+    recomendacion = { nivel: "espera", texto: "Está en la zona alta de tu historial" };
+  } else {
+    recomendacion = { nivel: "neutral", texto: "Precio dentro de lo normal" };
+  }
+
+  return {
+    respuesta: {
+      nombre: ficha.nombre,
+      registros: validos.length,
+      minimo: dinero.pen(minimo),
+      maximo: dinero.pen(maximo),
+      promedio: dinero.pen(promedio),
+      actual: dinero.pen(actual),
+      recomendacion: recomendacion.texto,
+      nota:
+        "Historial propio en soles, construido con cada revisión de precio " +
+        "(máximo un registro cada 6 horas). No es el histórico completo de Steam.",
+    },
+    widgets: [
+      {
+        tipo: "historial",
+        datos: {
+          appid,
+          nombre: ficha.nombre,
+          imagen: ficha.imagen,
+          puntos: validos,
+          minimo,
+          maximo,
+          promedio,
+          actual,
+          recomendacion,
+          moneda: "PEN",
+        },
+      },
+    ],
+  };
+};
+
+// ---------------------------------------------------------------- resenas_juego
+export const resenasJuego = async ({ appid }) => {
+  const [ficha, info] = await Promise.all([
+    steam.detalles(appid),
+    steamspy.resumen(appid).catch(() => null),
+  ]);
+
+  const positivas = Number(info?.positivas ?? 0);
+  const negativas = Number(info?.negativas ?? 0);
+  const total = positivas + negativas;
+
+  if (total === 0 && !ficha.resenas) {
+    return {
+      respuesta: {
+        nombre: ficha.nombre,
+        mensaje: "Steam no tiene un resumen de reseñas para este juego.",
+      },
+      widgets: [],
+    };
+  }
+
+  const datos = {
+    appid,
+    nombre: ficha.nombre,
+    imagen: ficha.imagen,
+    prensa: ficha.resenas ? steam.limpiarHtml(ficha.resenas).slice(0, 280) : null,
+    positivas,
+    negativas,
+    total,
+    porcentaje: info?.porcentajePositivo ?? null,
+    metacritic: ficha.metacritic ?? null,
+    url: `https://store.steampowered.com/app/${appid}/#app_reviews_hash`,
+    nota:
+      "Steam no expone reseñas individuales por su API pública. Este es el resumen " +
+      "agregado de SteamSpy; abre Steam para leer los textos completos.",
+  };
+
+  return {
+    respuesta: {
+      nombre: datos.nombre,
+      prensa: datos.prensa ?? undefined,
+      positivas: datos.positivas,
+      negativas: datos.negativas,
+      porcentaje: datos.porcentaje,
+      metacritic: datos.metacritic,
+      nota: datos.nota,
+    },
+    widgets: [{ tipo: "resenas", datos }],
   };
 };

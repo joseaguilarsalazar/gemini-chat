@@ -82,6 +82,36 @@
 
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
+    <div id="pantalla-auth" class="auth" hidden>
+      <div class="auth-caja">
+        <div class="auth-marca">GS</div>
+        <h1>GameScout</h1>
+        <p class="auth-subtitulo">Tu copiloto de videojuegos</p>
+
+        <div class="auth-tabs">
+          <button type="button" data-auth-tab="login" class="activo">Ingresar</button>
+          <button type="button" data-auth-tab="registro">Crear cuenta</button>
+        </div>
+
+        <form id="form-login" class="auth-form">
+          <label>Usuario<input id="login-usuario" autocomplete="username" required /></label>
+          <label>Contraseña<input id="login-password" type="password" autocomplete="current-password" required /></label>
+          <button type="submit" class="btn-enviar">Ingresar</button>
+          <p id="login-error" class="auth-error" role="alert"></p>
+        </form>
+
+        <form id="form-registro" class="auth-form" hidden>
+          <label>Nombre<input id="registro-nombre" autocomplete="name" required /></label>
+          <label>Usuario<input id="registro-usuario" autocomplete="username" placeholder="3-24 caracteres" required /></label>
+          <label>Contraseña<input id="registro-password" type="password" autocomplete="new-password" placeholder="mínimo 6" required /></label>
+          <button type="submit" class="btn-enviar">Crear cuenta</button>
+          <p id="registro-error" class="auth-error" role="alert"></p>
+        </form>
+
+        <p class="auth-pie">Tus datos se guardan localmente en esta instalación.</p>
+      </div>
+    </div>
+
     <div id="panel-ajustes" class="panel-ajustes" hidden>
       <div class="panel-fondo" data-cerrar-ajustes></div>
       <aside class="panel-caja" role="dialog" aria-modal="true" aria-labelledby="titulo-ajustes">
@@ -120,6 +150,8 @@
               Avisarme cuando un deseo baje de precio
             </label>
             <button type="button" id="btn-permiso" class="btn-mini">Activar notificaciones del navegador</button>
+            <p id="canales-info" class="panel-ayuda"></p>
+            <button type="button" id="btn-probar" class="btn-mini">Probar notificación</button>
             <div class="panel-grid">
               <label>Correo<input id="email" type="email" autocomplete="off" placeholder="tu@correo.com" /></label>
               <label>Telegram chat ID<input id="telegram" autocomplete="off" placeholder="123456789" /></label>
@@ -130,6 +162,10 @@
           </section>
 
           <footer class="panel-pie">
+            <div class="panel-sesion">
+              <span id="usuario-sesion"></span>
+              <button type="button" id="btn-salir" class="btn-mini btn-mini-ghost">Cerrar sesión</button>
+            </div>
             <button type="submit" class="btn-enviar">Guardar ajustes</button>
           </footer>
         </form>

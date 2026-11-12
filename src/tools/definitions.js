@@ -358,8 +358,8 @@ export const declaracionesHerramientas = [
   {
     name: "requisitos_pc",
     description:
-      "Muestra los requisitos mínimos y recomendados de un juego y las especificaciones guardadas del usuario. " +
-      "Úsala para '¿corre en mi PC?' o '¿me alcanza la laptop?'.",
+      "Muestra los requisitos mínimos y recomendados de un juego, las especificaciones guardadas del usuario " +
+      "y su compatibilidad con Steam Deck. Úsala para '¿corre en mi PC?' o '¿funciona en Deck?'.",
     parameters: {
       type: Type.OBJECT,
       properties: { appid },
@@ -419,5 +419,32 @@ export const declaracionesHerramientas = [
     description:
       "Genera un resumen con alertas de precio, ofertas de la biblioteca, novedades de tus juegos, próximos lanzamientos y la oferta del día.",
     parameters: { type: Type.OBJECT, properties: {} },
+  },
+  {
+    name: "historial_precios",
+    description:
+      "Muestra el historial de precios propio de un juego (en soles) y una recomendación: mínimo, promedio, actual y si conviene comprar o esperar.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        appid,
+        dias: {
+          type: Type.INTEGER,
+          description: "Ventana en días (por defecto 90, máximo 365).",
+        },
+      },
+      required: ["appid"],
+    },
+  },
+  {
+    name: "resenas_juego",
+    description:
+      "Resumen de reseñas de un juego: porcentaje positivo, cantidad y Metacritic, con enlace a Steam. " +
+      "Steam no permite leer reseñas individuales por su API pública.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: { appid },
+      required: ["appid"],
+    },
   },
 ];

@@ -242,6 +242,11 @@ const construirFicha = (datos) => {
     dlcs.textContent = `${datos.dlcs} DLC`;
     metricas.append(dlcs);
   }
+  if (datos.deck?.etiqueta) {
+    const deck = el("span", "metrica");
+    deck.textContent = `Steam Deck: ${datos.deck.etiqueta}`;
+    metricas.append(deck);
+  }
   if (metricas.childElementCount > 0) cuerpo.append(metricas);
 
   if (datos.etiquetas?.length) {
@@ -767,6 +772,12 @@ const construirRequisitos = (datos) => {
   titulo.textContent = `Requisitos de ${datos.nombre ?? "el juego"}`;
   seccion.append(titulo);
 
+  if (datos.deck?.etiqueta) {
+    const deck = el("span", "chip-etiqueta");
+    deck.textContent = `Steam Deck: ${datos.deck.etiqueta}`;
+    seccion.append(deck);
+  }
+
   const grid = el("div", "requisitos-grid");
   const bloque = (tituloBloque, texto) => {
     const div = el("div", "requisitos-bloque");
@@ -1047,6 +1058,208 @@ const construirDigest = (datos) => {
   return seccion;
 };
 
+// ---------------------------------------------------------------- historial
+
+const SVG_NS = "http://www.w3.org/2000/svg";
+
+const crearSvg = (etiqueta, atributos = {}) => {
+  const nodo = document.createElementNS(SVG_NS, etiqueta);
+  for (const [clave, valor] of Object.entries(atributos)) nodo.setAttribute(clave, valor);
+  return nodo;
+};
+
+const construirHistorial = (datos) => {
+  const seccion = el("section", "widget historial");
+  seccion.dataset.widget = "historial";
+
+  const titulo = el("h3");
+  titulo.textContent = `Historial de precios de ${datos.nombre ?? "el juego"}`;
+  seccion.append(titulo);
+
+  if (!datos.puntos?.length) {
+    const nota = el("p", "widget-nota");
+    nota.textContent = "Aún no hay registros de precio para este juego.";
+    seccion.append(nota);
+    return seccion;
+  }
+
+  const resumen = el("div", "precio-resumen");
+  const bloque = (etiqueta, valor, destacado = false) => {
+    const div = el("div", `precio-bloque${destacado ? " destacado" : ""}`);
+    const tituloBloque = el("span", "precio-etiqueta");
+    tituloBloque.textContent = etiqueta;
+    const valorBloque = el("strong");
+    valorBloque.textContent = valor;
+    div.append(tituloBloque, valorBloque);
+    return div;
+  };
+
+  resumen.append(
+    bloque("Mínimo registrado", `S/ ${Number(datos.minimo).toFixed(2)}`),
+    bloque("Promedio", `S/ ${Number(datos.promedio).toFixed(2)}`),
+    bloque("Precio actual", `S/ ${Number(datos.actual).toFixed(2)}`, true)
+  );
+  seccion.append(resumen);
+
+  if (datos.recomendacion) {
+    const badge = el("span", `chip-precio nivel-${datos.recomendacion.nivel}`);
+    badge.textContent = datos.recomendacion.texto;
+    seccion.append(badge);
+  }
+
+  const puntos =
+    datos.puntos.length > 30
+      ? datos.puntos.filter(
+          (_, indice) =>
+            indice % Math.ceil(datos.puntos.length / 30) === 0 ||
+            indice === datos.puntos.length - 1
+        )
+      : datos.puntos;
+
+  const W = 640;
+  const H = 220;
+  const P = 32;
+  const valores = puntos.map((p) => Number(p.precio));
+  const min = Math.min(...valores);
+  const max = Math.max(...valores);
+  const rango = max - min || 1;
+  const x = (indice) => P + (indice * (W - 2 * P)) / Math.max(1, puntos.length - 1);
+  const y = (valor) => H - P - ((valor - min) / rango) * (H - 2 * P);
+
+  const svg = crearSvg("svg", {
+    viewBox: `0 0 ${W} ${H}`,
+    class: "grafico-precios",
+    role: "img",
+    "aria-label": `Historial de precios de ${datos.nombre ?? "el juego"}`,
+  });
+
+  svg.append(
+    crearSvg("line", {
+      x1: P,
+      y1: H - P,
+      x2: W - P,
+      y2: H - P,
+      class: "grafico-eje",
+    })
+  );
+
+  const area = [
+    `M ${x(0)} ${H - P}`,
+    ...puntos.map((p, indice) => `L ${x(indice)} ${y(Number(p.precio))}`),
+    `L ${x(puntos.length - 1)} ${H - P}`,
+    "Z",
+  ].join(" ");
+
+  svg.append(crearSvg("path", { d: area, class: "grafico-area" }));
+  svg.append(
+    crearSvg("polyline", {
+      points: puntos.map((p, indice) => `${x(indice)},${y(Number(p.precio))}`).join(" "),
+      class: "grafico-linea",
+    })
+  );
+
+  puntos.forEach((punto, indice) => {
+    svg.append(
+      crearSvg("circle", {
+        cx: x(indice),
+        cy: y(Number(punto.precio)),
+        r: indice === puntos.length - 1 ? 4.5 : 3,
+        class:
+          indice === puntos.length - 1 ? "grafico-punto actual" : "grafico-punto",
+      })
+    );
+  });
+
+  const etiquetaMax = crearSvg("text", { x: P, y: P - 12, class: "grafico-texto" });
+  etiquetaMax.textContent = `S/ ${max.toFixed(2)}`;
+  const etiquetaMin = crearSvg("text", { x: P, y: H - 8, class: "grafico-texto" });
+  etiquetaMin.textContent = `S/ ${min.toFixed(2)}`;
+  svg.append(etiquetaMax, etiquetaMin);
+
+  seccion.append(svg);
+
+  const fechas = el("div", "grafico-fechas");
+  const primera = el("span");
+  const ultima = el("span");
+  const fechaDe = (texto) => {
+    const fecha = new Date(`${texto.replace(" ", "T")}Z`);
+    return Number.isNaN(fecha.getTime()) ? texto : formatoFecha.format(fecha);
+  };
+  primera.textContent = fechaDe(datos.puntos[0].fecha);
+  ultima.textContent = fechaDe(datos.puntos[datos.puntos.length - 1].fecha);
+  fechas.append(primera, ultima);
+  seccion.append(fechas);
+
+  const nota = el("p", "widget-nota");
+  nota.textContent =
+    "Se guarda un punto por revisión (máximo uno cada 6 h). Los precios están en soles.";
+  seccion.append(nota);
+
+  return seccion;
+};
+
+// ---------------------------------------------------------------- reseñas
+
+const construirResenas = (datos) => {
+  const seccion = el("section", "widget resenas");
+  seccion.dataset.widget = "resenas";
+
+  const titulo = el("h3");
+  titulo.textContent = `Reseñas de ${datos.nombre ?? "el juego"}`;
+  seccion.append(titulo);
+
+  if (datos.prensa) {
+    const prensa = el("blockquote", "resenas-prensa");
+    prensa.textContent = datos.prensa;
+    seccion.append(prensa);
+  }
+
+  const stats = el("div", "biblio-stats");
+  const items = [
+    ["Positivas", datos.positivas],
+    ["Negativas", datos.negativas],
+    ["Total", datos.total],
+    ["Metacritic", datos.metacritic ?? "—"],
+  ];
+  for (const [etiqueta, valor] of items) {
+    const stat = el("div", "biblio-stat");
+    const numero = el("strong");
+    numero.textContent = String(valor ?? "—");
+    const texto = el("span");
+    texto.textContent = etiqueta;
+    stat.append(numero, texto);
+    stats.append(stat);
+  }
+  seccion.append(stats);
+
+  const total = Number(datos.total) || 1;
+  const barra = el("div", "resenas-barra");
+  const positivas = el("span", "resenas-positivas");
+  positivas.style.width = `${(Number(datos.positivas) / total) * 100}%`;
+  const negativas = el("span", "resenas-negativas");
+  negativas.style.width = `${(Number(datos.negativas) / total) * 100}%`;
+  barra.append(positivas, negativas);
+  seccion.append(barra);
+
+  if (datos.porcentaje != null) {
+    const porcentaje = el("p", "resenas-porcentaje");
+    porcentaje.textContent = `${datos.porcentaje}% de reseñas positivas`;
+    seccion.append(porcentaje);
+  }
+
+  const nota = el("p", "widget-nota");
+  nota.textContent = datos.nota;
+  seccion.append(nota);
+
+  const link = enlace("Leer reseñas en Steam", datos.url);
+  if (link) {
+    link.style.marginTop = "8px";
+    seccion.append(link);
+  }
+
+  return seccion;
+};
+
 // ---------------------------------------------------------------- registro
 
 const constructores = {
@@ -1062,6 +1275,8 @@ const constructores = {
   dlc: construirDlc,
   plan: construirPlan,
   digest: construirDigest,
+  historial: construirHistorial,
+  resenas: construirResenas,
 };
 
 const construir = (widget) => {

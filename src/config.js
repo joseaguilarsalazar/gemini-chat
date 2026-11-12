@@ -65,6 +65,33 @@ const config = Object.freeze({
 
   // Tiempo máximo de espera para APIs externas (Steam, CheapShark, SteamSpy).
   httpTimeoutMs: number("HTTP_TIMEOUT_MS", 20000),
+
+  auth: {
+    cookieName: "gamescout_sesion",
+    sessionDays: number("SESSION_DAYS", 30),
+    cookieSecure: process.env.COOKIE_SECURE === "true",
+  },
+
+  notifications: {
+    appUrl: process.env.APP_URL?.trim() || `http://localhost:${number("PORT", 3000)}`,
+    telegramToken: process.env.TELEGRAM_BOT_TOKEN?.trim() || "",
+    telegramChatId: process.env.TELEGRAM_CHAT_ID?.trim() || "",
+    telegramApiBase: process.env.TELEGRAM_API_BASE?.trim() || "https://api.telegram.org",
+    smtp: {
+      host: process.env.SMTP_HOST?.trim() || "",
+      port: number("SMTP_PORT", 587),
+      secure: process.env.SMTP_SECURE === "true",
+      user: process.env.SMTP_USER?.trim() || "",
+      pass: process.env.SMTP_PASS?.trim() || "",
+      from: process.env.SMTP_FROM?.trim() || "",
+    },
+  },
+
+  priceCheck: {
+    enabled: process.env.PRICE_CHECK_DISABLED !== "true",
+    intervalMs: number("PRICE_CHECK_INTERVAL_MS", 6 * 60 * 60 * 1000),
+    limit: number("PRICE_CHECK_LIMIT", 10),
+  },
 });
 
 export default config;

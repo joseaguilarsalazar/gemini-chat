@@ -47,8 +47,22 @@ const el = {
   pcSo: document.getElementById("pc-so"),
   notificacionesOn: document.getElementById("notificaciones-on"),
   btnPermiso: document.getElementById("btn-permiso"),
+  canalesInfo: document.getElementById("canales-info"),
+  btnProbar: document.getElementById("btn-probar"),
   email: document.getElementById("email"),
   telegram: document.getElementById("telegram"),
+  pantallaAuth: document.getElementById("pantalla-auth"),
+  formLogin: document.getElementById("form-login"),
+  formRegistro: document.getElementById("form-registro"),
+  loginUsuario: document.getElementById("login-usuario"),
+  loginPassword: document.getElementById("login-password"),
+  loginError: document.getElementById("login-error"),
+  registroNombre: document.getElementById("registro-nombre"),
+  registroUsuario: document.getElementById("registro-usuario"),
+  registroPassword: document.getElementById("registro-password"),
+  registroError: document.getElementById("registro-error"),
+  usuarioSesion: document.getElementById("usuario-sesion"),
+  btnSalir: document.getElementById("btn-salir"),
   form: document.getElementById("form-chat"),
   ingreso: document.getElementById("ingreso"),
   enviar: document.getElementById("btn-enviar"),
@@ -69,6 +83,7 @@ const state = {
   moneda: "PEN",
   prefs: null,
   tiendas: [],
+  usuario: null,
 };
 
 marked.setOptions({ gfm: true, breaks: true });
@@ -81,6 +96,11 @@ const api = async (ruta, opciones = {}) => {
     const datos = await respuesta.json().catch(() => ({}));
     const error = new Error(datos.error || `Error ${respuesta.status}`);
     error.status = respuesta.status;
+
+    if (respuesta.status === 401 && !ruta.startsWith("/api/auth/")) {
+      mostrarAuth();
+    }
+
     throw error;
   }
   return respuesta.status === 204 ? null : respuesta.json();
@@ -303,6 +323,14 @@ const cargarAjustes = async () => {
     el.pcSo.value = prefs.pc.so;
     el.email.value = prefs.email;
     el.telegram.value = prefs.telegramChatId;
+    el.usuarioSesion.textContent =
+      state.usuario?.nombre || state.usuario?.usuario || "";
+
+    const canales = prefs.canales ?? {};
+    el.canalesInfo.textContent =
+      `Telegram: ${canales.telegram ? "bot configurado" : "sin bot en .env"} · ` +
+      `Correo: ${canales.email ? "SMTP configurado" : "sin SMTP en .env"}. ` +
+      "Además, tu chat ID y correo deben estar guardados aquí abajo.";
 
     renderTiendas(prefs, tiendas.tiendas);
     actualizarTiendasEstado();
@@ -732,6 +760,7 @@ const enviarMensaje = async (texto) => {
 
     if (!respuesta.ok) {
       const datos = await respuesta.json().catch(() => ({}));
+      if (respuesta.status === 401) mostrarAuth();
       const error = new Error(datos.error || `Error ${respuesta.status}`);
       error.status = respuesta.status;
       throw error;
@@ -1038,6 +1067,15 @@ el.formAjustes.addEventListener("submit", guardarAjustes);
 el.soloOficiales.addEventListener("change", actualizarTiendasEstado);
 el.btnPermiso.addEventListener("click", pedirPermisoNotificaciones);
 
+el.btnProbar.addEventListener("click", async () => {
+  try {
+    const resultado = await api("/api/notificaciones/prueba", { method: "POST" });
+    mostrarToast(`Notificación enviada por ${resultado.enviados.join(", ")}`);
+  } catch (error) {
+    mostrarToast(error.message || "No se pudo enviar la notificación.", true);
+  }
+});
+
 document.addEventListener("keydown", (evento) => {
   if (evento.key === "Escape" && !el.panelAjustes.hidden) cerrarAjustes();
 });
@@ -1048,9 +1086,98 @@ el.nueva.addEventListener("click", () => {
   el.ingreso.focus();
 });
 
+/* ---------------------------------------------------------------- autenticación */
+
+let appIniciada = false;
+
+const cambiarTabAuth = (tab) => {
+  const login = tab === "login";
+  el.formLogin.hidden = !login;
+  el.formRegistro.hidden = login;
+  el.loginError.textContent = "";
+  el.registroError.textContent = "";
+
+  document.querySelectorAll("[data-auth-tab]").forEach((boton) => {
+    boton.classList.toggle("activo", boton.dataset.authTab === tab);
+  });
+};
+
+const mostrarAuth = (info = {}) => {
+  el.pantallaAuth.hidden = false;
+  const tab = info.hayUsuarios === false ? "registro" : "login";
+  cambiarTabAuth(tab);
+  (tab === "registro" ? el.registroNombre : el.loginUsuario).focus();
+};
+
+const ocultarAuth = () => {
+  el.pantallaAuth.hidden = true;
+};
+
+const enviarAuth = async ({ ruta, cuerpo, errorEl, boton }) => {
+  errorEl.textContent = "";
+  boton.disabled = true;
+
+  try {
+    await api(ruta, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(cuerpo),
+    });
+    window.location.reload();
+  } catch (error) {
+    errorEl.textContent = error.message || "No se pudo completar la operación.";
+  } finally {
+    boton.disabled = false;
+  }
+};
+
+document.querySelectorAll("[data-auth-tab]").forEach((boton) => {
+  boton.addEventListener("click", () => cambiarTabAuth(boton.dataset.authTab));
+});
+
+el.formLogin.addEventListener("submit", (evento) => {
+  evento.preventDefault();
+  enviarAuth({
+    ruta: "/api/auth/login",
+    cuerpo: { usuario: el.loginUsuario.value, password: el.loginPassword.value },
+    errorEl: el.loginError,
+    boton: el.formLogin.querySelector('button[type="submit"]'),
+  });
+});
+
+el.formRegistro.addEventListener("submit", (evento) => {
+  evento.preventDefault();
+  enviarAuth({
+    ruta: "/api/auth/registro",
+    cuerpo: {
+      nombre: el.registroNombre.value,
+      usuario: el.registroUsuario.value,
+      password: el.registroPassword.value,
+    },
+    errorEl: el.registroError,
+    boton: el.formRegistro.querySelector('button[type="submit"]'),
+  });
+});
+
+el.btnSalir.addEventListener("click", async () => {
+  try {
+    await api("/api/auth/logout", { method: "POST" });
+  } catch {
+    // Aunque falle, recargamos para limpiar el estado local.
+  }
+  window.location.reload();
+});
+
 /* ---------------------------------------------------------------- arranque */
 
-const iniciar = async () => {
+const iniciarApp = async () => {
+  if (appIniciada) return;
+  appIniciada = true;
+
+  if (state.usuario) {
+    el.usuarioSesion.textContent = state.usuario.nombre || state.usuario.usuario;
+  }
+
   try {
     const salud = await api("/api/health");
     cargarProveedores(salud);
@@ -1073,6 +1200,23 @@ const iniciar = async () => {
   window.setInterval(revisarAlertasNavegador, 5 * 60 * 1000);
 
   el.ingreso.focus();
+};
+
+const iniciar = async () => {
+  try {
+    const auth = await api("/api/auth/yo");
+
+    if (!auth.autenticado) {
+      mostrarAuth(auth);
+      return;
+    }
+
+    state.usuario = auth.usuario;
+    ocultarAuth();
+    await iniciarApp();
+  } catch {
+    mostrarAuth({ hayUsuarios: true });
+  }
 };
 
 iniciar();

@@ -31,6 +31,8 @@ const ejecutores = {
   ruleta_backlog: extras.ruleta,
   dlc_juego: extras.dlcJuego,
   resumen_diario: extras.resumenDiario,
+  historial_precios: extras.historialPrecios,
+  resenas_juego: extras.resenasJuego,
 };
 
 export const herramientas = declaracionesHerramientas;

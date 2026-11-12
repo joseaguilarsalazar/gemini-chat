@@ -2,6 +2,7 @@ import * as steam from "../integrations/steam.js";
 import * as cheapshark from "../integrations/cheapshark.js";
 import * as steamspy from "../integrations/steamspy.js";
 import * as library from "../repositories/library.js";
+import * as prices from "../repositories/prices.js";
 import { tiendasPermitidas } from "../repositories/prefs.js";
 import { crearMoneda } from "../services/money.js";
 import { revisarBiblioteca } from "../services/pricing.js";
@@ -102,13 +103,19 @@ export const buscar = async ({ consulta }, contexto) => {
 
 // ---------------------------------------------------------------- detalles_juego
 export const detalles = async ({ appid }, contexto) => {
-  const [ficha, resumen] = await Promise.all([
+  const [ficha, resumen, deck] = await Promise.all([
     steam.detalles(appid),
     steamspy.resumen(appid).catch(() => null),
+    steam.compatibilidadDeck(appid),
   ]);
   const dinero = await crearMoneda(contexto?.moneda);
 
   refrescarPrecioBiblioteca(contexto?.usuarioId, ficha.appid, ficha.precio);
+  prices.registrarPrecio({
+    appid: ficha.appid,
+    precioPEN: ficha.precio.final != null ? ficha.precio.final / 100 : null,
+    fuente: "detalle",
+  });
 
   const enBiblioteca = contexto?.usuarioId
     ? Boolean(library.obtener(contexto.usuarioId, ficha.appid))
@@ -135,6 +142,7 @@ export const detalles = async ({ appid }, contexto) => {
       categorias: ficha.categorias.slice(0, 8),
       logros: ficha.logros.total,
       dlc: ficha.dlc.length,
+      steamDeck: deck?.etiqueta ?? undefined,
       descripcion: ficha.descripcion,
       enBiblioteca,
     },
@@ -167,6 +175,7 @@ export const detalles = async ({ appid }, contexto) => {
           categorias: ficha.categorias.slice(0, 6),
           logros: ficha.logros.total,
           dlcs: ficha.dlc.length,
+          deck: deck ?? null,
           moneda: dinero.moneda,
         },
       },
@@ -266,6 +275,13 @@ export const comparar = async ({ appid }, contexto) => {
   refrescarPrecioBiblioteca(contexto?.usuarioId, ficha.appid, ficha.precio);
 
   const mejor = ofertas[0] ?? null;
+
+  prices.registrarPrecio({
+    appid: ficha.appid,
+    precioPEN: ficha.precio.final != null ? ficha.precio.final / 100 : null,
+    precioUSD: mejor?.precioUSD ?? null,
+    fuente: "comparacion",
+  });
 
   return {
     respuesta: {
