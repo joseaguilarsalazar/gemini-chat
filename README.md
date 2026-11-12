@@ -19,6 +19,16 @@ conversación ni la biblioteca.
 - **Precios locales**: Steam consultado con `cc=pe`, precios en soles (S/).
 - **Dos motores conmutables**: DeepSeek V4.1 Flash (por defecto, nivel medio) y Gemini.
   La preferencia se guarda en el navegador y cada respuesta indica qué motor la generó.
+- **Ofertas de tu biblioteca**: revisa los juegos guardados y muestra solo ofertas que
+  realmente sean más baratas que Steam.
+- **Revisión de precios y alertas**: actualiza el precio actual, detecta cuando un juego
+  baja de tu objetivo y avisa en el panel.
+- **Juegos similares y juegos cortos**: recomendaciones por etiquetas y filtro por duración.
+- **Filtros de catálogo**: por idioma (español/audio), edad recomendada y presupuesto.
+- **Tráilers y capturas** dentro del chat, con reproductor HLS.
+- **Próximos lanzamientos** y **más jugados ahora**.
+- **Selector de moneda** (PEN/USD/EUR) que se aplica a los precios del chat.
+- **Exportación de la biblioteca** en CSV o Markdown.
 - **Comparación entre tiendas**: CheapShark aporta ofertas de ~35 tiendas en dólares y el mínimo histórico,
   con conversión referencial a soles.
 - **Ofertas del momento** filtradas por descuento y precio máximo.
@@ -136,6 +146,14 @@ OpenAI y acumula los `tool_calls` por índice; Gemini usa `functionDeclarations`
 | `agregar_a_biblioteca` | Agrega un juego (opcional: precio objetivo, nota) | SQLite + Steam |
 | `actualizar_juego_biblioteca` | Estado, puntuación, nota, precio objetivo | SQLite |
 | `quitar_de_biblioteca` | Elimina un juego | SQLite |
+| `ofertas_de_mi_biblioteca` | Ofertas en otras tiendas para tus juegos guardados | Biblioteca + CheapShark |
+| `revisar_alertas` | Revisa precios, actualiza la biblioteca y detecta objetivos | Biblioteca + CheapShark + Steam |
+| `juegos_similares` | Recomienda por etiquetas de un juego, excluyendo los que ya tienes | SteamSpy + Steam |
+| `juegos_cortos` | Populares y bien valorados de pocas horas | SteamSpy |
+| `trailers_juego` | Tráilers y capturas | Steam appdetails |
+| `filtrar_catalogo` | Filtra por idioma, edad máxima y precio | Steam + SteamSpy |
+| `proximos_lanzamientos` | Calendario de próximos estrenos | Steam featuredcategories |
+| `mas_jugados` | Ranking por jugadores concurrentes | SteamSpy |
 
 ### Widgets
 
@@ -146,6 +164,7 @@ OpenAI y acumula los `tool_calls` por índice; Gemini usa `functionDeclarations`
 | `tabla_precios` | Steam S/, otras tiendas US$ + S/ aproximados, mínimo histórico | Ir a la tienda |
 | `noticias` | Titulares con fecha y resumen | Abrir noticia |
 | `biblioteca` | Estadísticas + filas con estado, nota y alertas | Cambiar estado, precio objetivo, quitar, refrescar |
+| `media` | Reproductor de tráiler (HLS) + galería de capturas | Ver tráiler, abrir captura |
 
 Los widgets guardados con el mensaje se reconstruyen al abrir una conversación antigua; los
 paneles de biblioteca se refrescan con el estado actual de la base de datos.
@@ -206,9 +225,13 @@ gemini-chat/
 | `GET` | `/api/sesiones/:id/mensajes` | Historial con widgets |
 | `DELETE` | `/api/sesiones/:id` | Elimina conversación y mensajes |
 | `GET` | `/api/biblioteca` | Biblioteca + resumen y alertas |
+| `GET` | `/api/biblioteca/export` | Descarga la biblioteca en CSV o Markdown |
 | `POST` | `/api/biblioteca` | Agrega un juego (botón de widget) |
 | `PATCH` | `/api/biblioteca/:appid` | Estado, puntuación, nota, precio objetivo |
 | `DELETE` | `/api/biblioteca/:appid` | Quita un juego |
+| `GET` | `/api/preferencias` | Moneda, tiendas, PC y notificaciones |
+| `PATCH` | `/api/preferencias` | Actualiza las preferencias |
+| `GET` | `/api/tiendas` | Tiendas de CheapShark (con marca de oficial) |
 
 ### Cuerpo de `POST /api/chat`
 

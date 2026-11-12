@@ -6,6 +6,7 @@ import { listarProveedores } from "./ai/chat.js";
 import { closeDb } from "./db/index.js";
 import chatRoutes from "./routes/chat.routes.js";
 import libraryRoutes from "./routes/library.routes.js";
+import prefsRoutes from "./routes/prefs.routes.js";
 import { errorHandler, notFound } from "./middleware/errors.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -48,6 +49,7 @@ app.get("/api/health", (req, res) => {
 
 app.use("/api", chatRoutes);
 app.use("/api", libraryRoutes);
+app.use("/api", prefsRoutes);
 
 // El frontend se sirve desde el mismo origen: no hace falta CORS.
 app.use(express.static(publicDir));

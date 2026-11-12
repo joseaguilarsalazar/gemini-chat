@@ -1,5 +1,5 @@
 import config from "../../config.js";
-import { systemInstruction } from "../prompts.js";
+import { construirSystemInstruction } from "../prompts.js";
 import { getGeminiClient } from "../client.js";
 import { ejecutarHerramienta, herramientas } from "../../tools/index.js";
 
@@ -35,7 +35,7 @@ export const mensajeDeError = (error) => {
  * Si falla por saturación ANTES de emitir texto, reintenta con espera
  * exponencial y luego prueba los modelos de respaldo.
  */
-const emitirPaso = async (contents, alFragmento) => {
+const emitirPaso = async (contents, alFragmento, instruccion) => {
   const modelos = [config.gemini.modelName, ...config.gemini.modelFallbacks];
   let ultimoError;
 
@@ -48,7 +48,7 @@ const emitirPaso = async (contents, alFragmento) => {
           model: modelo,
           contents,
           config: {
-            systemInstruction,
+            systemInstruction: instruccion,
             tools: [{ functionDeclarations: herramientas }],
             automaticFunctionCalling: { disable: true },
             temperature: 0.7,
@@ -87,8 +87,9 @@ const emitirPaso = async (contents, alFragmento) => {
 const claveLlamada = (llamada) =>
   llamada.id ?? `${llamada.name}:${JSON.stringify(llamada.args ?? {})}`;
 
-export const responder = async ({ history, mensaje, onTexto, onWidget }) => {
+export const responder = async ({ history, mensaje, contexto, onTexto, onWidget }) => {
   const contents = [...history, { role: "user", parts: [{ text: mensaje }] }];
+  const instruccion = construirSystemInstruction(contexto?.moneda);
   const widgets = [];
   let textoCompleto = "";
   let interrumpido = false;
@@ -99,26 +100,30 @@ export const responder = async ({ history, mensaje, onTexto, onWidget }) => {
     const claves = new Set();
     let textoPaso = "";
 
-    await emitirPaso(contents, (partes) => {
-      for (const parte of partes) {
-        if (parte.functionCall) {
-          const clave = claveLlamada(parte.functionCall);
-          if (claves.has(clave)) continue;
-          claves.add(clave);
-          llamadas.push(parte.functionCall);
+    await emitirPaso(
+      contents,
+      (partes) => {
+        for (const parte of partes) {
+          if (parte.functionCall) {
+            const clave = claveLlamada(parte.functionCall);
+            if (claves.has(clave)) continue;
+            claves.add(clave);
+            llamadas.push(parte.functionCall);
+            partesModelo.push(parte);
+            continue;
+          }
+
+          if (parte.text && !parte.thought) {
+            textoPaso += parte.text;
+            textoCompleto += parte.text;
+            if (onTexto?.(parte.text) === false) interrumpido = true;
+          }
+
           partesModelo.push(parte);
-          continue;
         }
-
-        if (parte.text && !parte.thought) {
-          textoPaso += parte.text;
-          textoCompleto += parte.text;
-          if (onTexto?.(parte.text) === false) interrumpido = true;
-        }
-
-        partesModelo.push(parte);
-      }
-    });
+      },
+      instruccion
+    );
 
     if (partesModelo.length > 0) {
       contents.push({ role: "model", parts: partesModelo });
@@ -133,7 +138,8 @@ export const responder = async ({ history, mensaje, onTexto, onWidget }) => {
     for (const llamada of llamadas) {
       const { respuesta, widgets: nuevos } = await ejecutarHerramienta(
         llamada.name,
-        llamada.args ?? {}
+        llamada.args ?? {},
+        contexto
       );
 
       for (const widget of nuevos) {

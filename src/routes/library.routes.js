@@ -1,6 +1,7 @@
 import { Router } from "express";
 import * as library from "../repositories/library.js";
 import { vistaBiblioteca } from "../services/libraryView.js";
+import { usuarioIdDe } from "../auth/context.js";
 
 const router = Router();
 
@@ -10,13 +11,63 @@ const esAppid = (valor) => Number.isInteger(valor) && valor > 0;
 
 // -------------------------------------------------------- GET /api/biblioteca
 router.get("/biblioteca", (req, res) => {
-  res.json(vistaBiblioteca());
+  res.json(vistaBiblioteca(usuarioIdDe(req)));
+});
+
+// ----------------------------------------------- GET /api/biblioteca/export
+router.get("/biblioteca/export", (req, res) => {
+  const usuarioId = usuarioIdDe(req);
+  const juegos = library.listar(usuarioId);
+  const formato = String(req.query.formato ?? "csv").toLowerCase();
+
+  if (formato === "md" || formato === "markdown") {
+    const lineas = [
+      "# Mi biblioteca — GameScout",
+      "",
+      `Total: ${juegos.length} juegos`,
+      "",
+      "| Juego | Estado | Puntuación | Objetivo (S/) | Actual (S/) | Etiquetas |",
+      "|---|---|---|---|---|---|",
+      ...juegos.map(
+        (j) =>
+          `| ${j.nombre} | ${j.estado} | ${j.puntuacion ?? "—"} | ${
+            j.precioObjetivo ?? "—"
+          } | ${j.precioActual ?? "—"} | ${j.etiquetas.slice(0, 4).join(", ") || "—"} |`
+      ),
+    ];
+
+    res.setHeader("Content-Type", "text/markdown; charset=utf-8");
+    res.setHeader("Content-Disposition", 'attachment; filename="biblioteca-gamescout.md"');
+    return res.send(lineas.join("\n"));
+  }
+
+  const campo = (valor) => `"${String(valor ?? "").replace(/"/g, '""')}"`;
+  const filas = [
+    ["appid", "nombre", "estado", "puntuacion", "nota", "precio_objetivo", "precio_actual", "tiempo_medio_min", "etiquetas", "agregado"],
+    ...juegos.map((j) => [
+      j.appid,
+      j.nombre,
+      j.estado,
+      j.puntuacion,
+      j.nota,
+      j.precioObjetivo,
+      j.precioActual,
+      j.tiempoMedio,
+      j.etiquetas.join("|"),
+      j.agregado,
+    ]),
+  ];
+
+  const csv = `\uFEFF${filas.map((fila) => fila.map(campo).join(",")).join("\r\n")}`;
+
+  res.setHeader("Content-Type", "text/csv; charset=utf-8");
+  res.setHeader("Content-Disposition", 'attachment; filename="biblioteca-gamescout.csv"');
+  res.send(csv);
 });
 
 // ------------------------------------------------------- POST /api/biblioteca
-// Lo usa el botón "Agregar" de los widgets. No llama a Steam: los datos ya
-// vienen en la tarjeta que el usuario está viendo.
 router.post("/biblioteca", (req, res) => {
+  const usuarioId = usuarioIdDe(req);
   const { appid, nombre, imagen, estado = "wishlist", precioActual = null } = req.body ?? {};
   const id = Number(appid);
 
@@ -39,7 +90,7 @@ router.post("/biblioteca", (req, res) => {
     precio = valor;
   }
 
-  library.guardar({
+  library.guardar(usuarioId, {
     appid: id,
     nombre: nombre.trim().slice(0, 200),
     imagen: typeof imagen === "string" && imagen.startsWith("https://") ? imagen : null,
@@ -47,16 +98,18 @@ router.post("/biblioteca", (req, res) => {
     precioActual: precio,
   });
 
-  res.status(201).json({ ok: true, juego: library.obtener(id), ...vistaBiblioteca() });
+  res.status(201).json({ ok: true, juego: library.obtener(usuarioId, id), ...vistaBiblioteca(usuarioId) });
 });
 
 // -------------------------------------------------- PATCH /api/biblioteca/:appid
 router.patch("/biblioteca/:appid", (req, res) => {
+  const usuarioId = usuarioIdDe(req);
   const appid = Number(req.params.appid);
+
   if (!esAppid(appid)) {
     return res.status(400).json({ error: "El identificador del juego no es válido." });
   }
-  if (!library.obtener(appid)) {
+  if (!library.obtener(usuarioId, appid)) {
     return res.status(404).json({ error: "Ese juego no está en la biblioteca." });
   }
 
@@ -95,17 +148,19 @@ router.patch("/biblioteca/:appid", (req, res) => {
     }
   }
 
-  library.actualizar(appid, cambios);
-  res.json({ ok: true, juego: library.obtener(appid), ...vistaBiblioteca() });
+  library.actualizar(usuarioId, appid, cambios);
+  res.json({ ok: true, juego: library.obtener(usuarioId, appid), ...vistaBiblioteca(usuarioId) });
 });
 
 // ------------------------------------------------- DELETE /api/biblioteca/:appid
 router.delete("/biblioteca/:appid", (req, res) => {
+  const usuarioId = usuarioIdDe(req);
   const appid = Number(req.params.appid);
+
   if (!esAppid(appid)) {
     return res.status(400).json({ error: "El identificador del juego no es válido." });
   }
-  if (!library.eliminar(appid)) {
+  if (!library.eliminar(usuarioId, appid)) {
     return res.status(404).json({ error: "Ese juego no está en la biblioteca." });
   }
   res.status(204).end();

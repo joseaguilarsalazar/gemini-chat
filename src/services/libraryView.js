@@ -9,13 +9,14 @@ export const ETIQUETAS_ESTADO = {
 
 /**
  * Datos que consume el widget de biblioteca, tanto desde el chat como desde la API.
+ * Los precios se mantienen en soles (PEN).
  */
-export const vistaBiblioteca = () => {
-  const resumen = library.resumen();
+export const vistaBiblioteca = (usuarioId) => {
+  const resumen = library.resumen(usuarioId);
 
   return {
     resumen,
-    juegos: library.listar().map((juego) => ({
+    juegos: library.listar(usuarioId).map((juego) => ({
       ...juego,
       estadoTexto: ETIQUETAS_ESTADO[juego.estado] ?? juego.estado,
       alerta:

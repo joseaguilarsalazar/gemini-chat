@@ -1,5 +1,5 @@
 import config from "../../config.js";
-import { systemInstruction } from "../prompts.js";
+import { construirSystemInstruction } from "../prompts.js";
 import { ejecutarHerramienta } from "../../tools/index.js";
 import { herramientasOpenAI } from "../../tools/openai.js";
 
@@ -49,8 +49,8 @@ const parsearArgumentos = (texto) => {
 };
 
 /** Convierte el historial interno (formato Gemini) a mensajes OpenAI. */
-const aMensajes = (history, mensaje) => [
-  { role: "system", content: systemInstruction },
+const aMensajes = (history, mensaje, instruccion) => [
+  { role: "system", content: instruccion },
   ...history.map((turno) => ({
     role: turno.role === "model" ? "assistant" : "user",
     content: turno.parts.map((parte) => parte.text).join("\n"),
@@ -201,10 +201,12 @@ export const responder = async ({
   history,
   mensaje,
   nivel = config.deepseek.effort,
+  contexto,
   onTexto,
   onWidget,
 }) => {
-  const messages = aMensajes(history, mensaje);
+  const instruccion = construirSystemInstruction(contexto?.moneda);
+  const messages = aMensajes(history, mensaje, instruccion);
   const widgets = [];
   let textoCompleto = "";
   let interrumpido = false;
@@ -231,7 +233,8 @@ export const responder = async ({
     for (const llamada of resultado.llamadas) {
       const { respuesta, widgets: nuevos } = await ejecutarHerramienta(
         llamada.name,
-        llamada.args
+        llamada.args,
+        contexto
       );
 
       for (const widget of nuevos) {

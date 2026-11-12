@@ -4,8 +4,15 @@ import config from "../config.js";
 import { mensajeDeError, obtenerProveedor, responderCon } from "../ai/chat.js";
 import { openSse, sendSse } from "../http/sse.js";
 import { isValidSessionId, validateChatBody } from "../middleware/validate.js";
-import { deleteSession, getSession, listSessions } from "../repositories/sessions.js";
+import {
+  deleteSession,
+  getSession,
+  getSessionOwner,
+  listSessions,
+} from "../repositories/sessions.js";
 import { getHistoryForModel, getMessages, saveTurn } from "../repositories/messages.js";
+import { getPrefs } from "../repositories/prefs.js";
+import { usuarioIdDe } from "../auth/context.js";
 
 const router = Router();
 
@@ -16,17 +23,15 @@ const tituloDesde = (mensaje) => {
 };
 
 // ---------------------------------------------------------------- POST /api/chat
-// Crea o continúa una conversación. El modelo puede invocar herramientas y cada
-// resultado se emite como widget. Al terminar, se guarda el turno completo.
 router.post("/chat", async (req, res) => {
   const { mensaje, sesionId } = req.body ?? {};
+  const usuarioId = usuarioIdDe(req);
 
   const errorValidacion = validateChatBody({ mensaje, sesionId });
   if (errorValidacion) {
     return res.status(400).json({ error: errorValidacion });
   }
 
-  // Proveedor y nivel de razonamiento (el nivel solo aplica a DeepSeek).
   const proveedorId =
     typeof req.body?.proveedor === "string" ? req.body.proveedor : config.defaultProvider;
   const motor = obtenerProveedor(proveedorId);
@@ -53,7 +58,15 @@ router.post("/chat", async (req, res) => {
   const mensajeUsuario = mensaje.trim();
   const id = sesionId ?? randomUUID();
 
-  // Si la conversación aún no existe, el historial simplemente viene vacío.
+  // No permitimos continuar una conversación de otro usuario.
+  const dueno = getSessionOwner(id);
+  if (dueno && dueno !== usuarioId) {
+    return res.status(404).json({ error: "La conversación no existe." });
+  }
+
+  const prefs = getPrefs(usuarioId);
+  const contexto = { usuarioId, moneda: prefs.moneda, prefs };
+
   const history = getHistoryForModel(id, config.historyLimit);
 
   openSse(res);
@@ -72,6 +85,7 @@ router.post("/chat", async (req, res) => {
       history,
       mensaje: mensajeUsuario,
       nivel,
+      contexto,
       onTexto: (parte) => sendSse(res, { type: "chunk", texto: parte }),
       onWidget: (widget) => sendSse(res, { type: "widget", widget }),
     });
@@ -87,8 +101,6 @@ router.post("/chat", async (req, res) => {
       return;
     }
 
-    // Si solo hubo herramientas, damos una frase de cierre para que el mensaje
-    // no quede vacío ni en pantalla ni en la base de datos.
     if (!texto.trim()) {
       texto = "Estos son los datos que encontré:";
       sendSse(res, { type: "chunk", texto });
@@ -98,6 +110,7 @@ router.post("/chat", async (req, res) => {
 
     try {
       saveTurn({
+        usuarioId,
         sesionId: id,
         titulo,
         mensaje: mensajeUsuario,
@@ -127,7 +140,7 @@ router.post("/chat", async (req, res) => {
 
 // ----------------------------------------------------------- GET /api/sesiones
 router.get("/sesiones", (req, res) => {
-  res.json({ sesiones: listSessions() });
+  res.json({ sesiones: listSessions(usuarioIdDe(req)) });
 });
 
 // ------------------------------------------------ GET /api/sesiones/:id/mensajes
@@ -138,7 +151,7 @@ router.get("/sesiones/:id/mensajes", (req, res) => {
     return res.status(400).json({ error: "Identificador de conversación inválido." });
   }
 
-  const sesion = getSession(id);
+  const sesion = getSession(usuarioIdDe(req), id);
   if (!sesion) {
     return res.status(404).json({ error: "La conversación no existe." });
   }
@@ -154,7 +167,7 @@ router.delete("/sesiones/:id", (req, res) => {
     return res.status(400).json({ error: "Identificador de conversación inválido." });
   }
 
-  if (!deleteSession(id)) {
+  if (!deleteSession(usuarioIdDe(req), id)) {
     return res.status(404).json({ error: "La conversación no existe." });
   }
 

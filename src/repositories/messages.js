@@ -21,8 +21,8 @@ const seleccionarUltimos = db.prepare(`
 `);
 
 const insertarSesion = db.prepare(`
-  INSERT INTO sesiones (id, titulo)
-  VALUES (?, ?)
+  INSERT INTO sesiones (id, usuario_id, titulo)
+  VALUES (?, ?, ?)
   ON CONFLICT (id) DO NOTHING
 `);
 
@@ -54,6 +54,7 @@ const parsearWidgets = (texto) => {
  */
 export const saveTurn = db.transaction(
   ({
+    usuarioId,
     sesionId,
     titulo,
     mensaje,
@@ -63,7 +64,7 @@ export const saveTurn = db.transaction(
     modelo = null,
     nivel = null,
   }) => {
-    insertarSesion.run(sesionId, titulo);
+    insertarSesion.run(sesionId, usuarioId, titulo);
     insertarMensaje.run(sesionId, "user", mensaje, null, null, null, null);
     insertarMensaje.run(
       sesionId,

@@ -43,6 +43,33 @@ const enlace = (texto, url) => {
   return a;
 };
 
+const enlaceDescarga = (texto, url) => {
+  const a = el("a", "btn-mini btn-mini-ghost");
+  a.href = url;
+  a.textContent = texto;
+  a.setAttribute("download", "");
+  return a;
+};
+
+const cargarScript = (url) =>
+  new Promise((resolve, reject) => {
+    const existente = document.querySelector(`script[src="${url}"]`);
+    if (existente) {
+      if (existente.dataset.cargado) resolve();
+      else existente.addEventListener("load", resolve, { once: true });
+      return;
+    }
+    const script = document.createElement("script");
+    script.src = url;
+    script.async = true;
+    script.addEventListener("load", () => {
+      script.dataset.cargado = "1";
+      resolve();
+    });
+    script.addEventListener("error", () => reject(new Error("No se pudo cargar el reproductor.")));
+    document.head.append(script);
+  });
+
 const insigniaDescuento = (descuento) => {
   if (!descuento) return null;
   const insignia = el("span", "badge-descuento");
@@ -194,6 +221,26 @@ const construirFicha = (datos) => {
     const p = el("span", "metrica");
     p.textContent = `${datos.porcentajePositivo}% reseñas positivas`;
     metricas.append(p);
+  }
+  if (datos.tieneEspanol) {
+    const idioma = el("span", "metrica");
+    idioma.textContent = datos.audioEspanol ? "Español con audio" : "Español con subtítulos";
+    metricas.append(idioma);
+  }
+  if (datos.edadMinima) {
+    const edad = el("span", "metrica");
+    edad.textContent = `+${datos.edadMinima}`;
+    metricas.append(edad);
+  }
+  if (datos.logros) {
+    const logros = el("span", "metrica");
+    logros.textContent = `${datos.logros} logros`;
+    metricas.append(logros);
+  }
+  if (datos.dlcs) {
+    const dlcs = el("span", "metrica");
+    dlcs.textContent = `${datos.dlcs} DLC`;
+    metricas.append(dlcs);
   }
   if (metricas.childElementCount > 0) cuerpo.append(metricas);
 
@@ -379,6 +426,98 @@ const construirNoticias = (datos) => {
   return seccion;
 };
 
+// ---------------------------------------------------------------- multimedia
+
+const construirMedia = (datos) => {
+  const seccion = el("section", "widget media");
+  seccion.dataset.widget = "media";
+
+  const titulo = el("h3");
+  titulo.textContent = `Tráilers y capturas de ${datos.nombre ?? "el juego"}`;
+  seccion.append(titulo);
+
+  const peliculas = (datos.peliculas ?? []).filter((p) => p.hls || p.mp4 || p.webm);
+
+  if (peliculas.length > 0) {
+    const contenedor = el("div", "media-video-contenedor");
+    const video = el("video", "media-video");
+    video.controls = true;
+    video.preload = "metadata";
+    video.poster = urlSegura(peliculas[0].miniatura) ?? "";
+    contenedor.append(video);
+
+    const reproducir = async (pelicula) => {
+      video.pause();
+      video.removeAttribute("src");
+      if (video._hls) {
+        video._hls.destroy();
+        video._hls = null;
+      }
+
+      if (pelicula.mp4) {
+        video.src = pelicula.mp4;
+      } else if (pelicula.webm) {
+        video.src = pelicula.webm;
+      } else if (pelicula.hls) {
+        try {
+          if (!window.Hls) await cargarScript("https://cdn.jsdelivr.net/npm/hls.js@1");
+          if (window.Hls?.isSupported()) {
+            const hls = new window.Hls();
+            hls.loadSource(pelicula.hls);
+            hls.attachMedia(video);
+            video._hls = hls;
+          } else {
+            video.src = pelicula.hls;
+          }
+        } catch {
+          // Si el reproductor no carga, queda el póster y el enlace a Steam.
+        }
+      }
+      video.load();
+    };
+
+    reproducir(peliculas[0]);
+
+    if (peliculas.length > 1) {
+      const selector = el("select", "select-estado media-selector");
+      peliculas.forEach((p, indice) =>
+        selector.add(new Option(p.nombre ?? `Tráiler ${indice + 1}`, String(indice)))
+      );
+      selector.addEventListener("change", () =>
+        reproducir(peliculas[Number(selector.value)])
+      );
+      contenedor.append(selector);
+    }
+
+    seccion.append(contenedor);
+  } else {
+    const nota = el("p", "widget-nota");
+    nota.textContent = "No hay tráiler disponible. Puedes verlo en la tienda de Steam.";
+    seccion.append(nota);
+  }
+
+  if (datos.capturas?.length) {
+    const galeria = el("div", "media-galeria");
+    for (const captura of datos.capturas.slice(0, 8)) {
+      const url = urlSegura(captura);
+      if (!url) continue;
+      const a = el("a", "media-captura");
+      a.href = url;
+      a.target = "_blank";
+      a.rel = "noopener noreferrer";
+      const img = imagen(url, `Captura de ${datos.nombre}`, "");
+      if (img) {
+        img.loading = "lazy";
+        a.append(img);
+        galeria.append(a);
+      }
+    }
+    if (galeria.childElementCount > 0) seccion.append(galeria);
+  }
+
+  return seccion;
+};
+
 // ---------------------------------------------------------------- biblioteca
 
 const ESTADOS = [
@@ -397,8 +536,11 @@ const construirBiblioteca = (datos) => {
   titulo.textContent = "Mi biblioteca";
   cabecera.append(titulo);
 
-  const refrescar = botonAccion("Actualizar", "refrescar");
-  cabecera.append(refrescar);
+  const accionesCabecera = el("div", "biblio-cabecera-acciones");
+  accionesCabecera.append(enlaceDescarga("CSV", "/api/biblioteca/export?formato=csv"));
+  accionesCabecera.append(enlaceDescarga("MD", "/api/biblioteca/export?formato=md"));
+  accionesCabecera.append(botonAccion("Actualizar", "refrescar"));
+  cabecera.append(accionesCabecera);
   seccion.append(cabecera);
 
   const resumen = datos.resumen ?? {};
@@ -505,6 +647,7 @@ const constructores = {
   tabla_precios: construirPrecios,
   noticias: construirNoticias,
   biblioteca: construirBiblioteca,
+  media: construirMedia,
 };
 
 const construir = (widget) => {

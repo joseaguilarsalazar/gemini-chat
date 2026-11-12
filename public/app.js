@@ -13,6 +13,12 @@ const ETIQUETAS_NIVEL = {
   max: { corto: "máximo", selector: "Máximo" },
 };
 
+const MONEDAS_UI = {
+  PEN: "S/ · Sol",
+  USD: "US$ · Dólar",
+  EUR: "€ · Euro",
+};
+
 const NOMBRES_MODELO = {
   "deepseek-flash": "DeepSeek V4.1 Flash",
   "deepseek-v4-pro": "DeepSeek V4 Pro",
@@ -28,6 +34,7 @@ const el = {
   modelo: document.getElementById("modelo"),
   proveedor: document.getElementById("proveedor-ia"),
   nivel: document.getElementById("nivel-ia"),
+  moneda: document.getElementById("moneda-ia"),
   form: document.getElementById("form-chat"),
   ingreso: document.getElementById("ingreso"),
   enviar: document.getElementById("btn-enviar"),
@@ -45,6 +52,7 @@ const state = {
   proveedores: [],
   proveedor: localStorage.getItem(CLAVE_PROVEEDOR) || null,
   nivel: localStorage.getItem(CLAVE_NIVEL) || null,
+  moneda: "PEN",
 };
 
 marked.setOptions({ gfm: true, breaks: true });
@@ -207,6 +215,22 @@ const cargarProveedores = (salud) => {
 
   if (state.proveedor) localStorage.setItem(CLAVE_PROVEEDOR, state.proveedor);
   actualizarNiveles();
+};
+
+const cargarPreferencias = async () => {
+  try {
+    const prefs = await api("/api/preferencias");
+    state.moneda = prefs.moneda ?? "PEN";
+
+    el.moneda.replaceChildren();
+    for (const [id, texto] of Object.entries(MONEDAS_UI)) {
+      el.moneda.add(new Option(texto, id));
+    }
+    el.moneda.value = state.moneda;
+  } catch {
+    el.moneda.replaceChildren(new Option(MONEDAS_UI.PEN, "PEN"));
+    state.moneda = "PEN";
+  }
 };
 
 /* ---------------------------------------------------------------- mensajes */
@@ -793,6 +817,23 @@ el.nivel.addEventListener("change", () => {
   actualizarEtiquetaIA();
 });
 
+el.moneda.addEventListener("change", async () => {
+  const anterior = state.moneda;
+  try {
+    const prefs = await api("/api/preferencias", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ moneda: el.moneda.value }),
+    });
+    state.moneda = prefs.moneda;
+    el.moneda.value = state.moneda;
+    mostrarToast(`Moneda: ${MONEDAS_UI[state.moneda]}`);
+  } catch (error) {
+    el.moneda.value = anterior;
+    mostrarToast(error.message || "No se pudo cambiar la moneda.", true);
+  }
+});
+
 el.nueva.addEventListener("click", () => {
   if (state.enviando) return;
   limpiarSesion();
@@ -809,6 +850,7 @@ const iniciar = async () => {
     el.modelo.textContent = "sin conexión";
   }
 
+  await cargarPreferencias();
   await cargarSesiones();
 
   if (state.sesionId) {

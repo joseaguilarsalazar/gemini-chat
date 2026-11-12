@@ -15,6 +15,14 @@ const ejecutores = {
   actualizar_juego_biblioteca: biblioteca.actualizar,
   quitar_de_biblioteca: biblioteca.quitar,
   resumen_biblioteca: biblioteca.resumen,
+  ofertas_de_mi_biblioteca: juegos.ofertasBiblioteca,
+  revisar_alertas: juegos.revisarAlertas,
+  juegos_similares: juegos.similares,
+  juegos_cortos: juegos.cortos,
+  trailers_juego: juegos.trailers,
+  filtrar_catalogo: juegos.filtrar,
+  proximos_lanzamientos: juegos.proximos,
+  mas_jugados: juegos.masJugados,
 };
 
 export const herramientas = declaracionesHerramientas;
@@ -23,8 +31,11 @@ export const herramientas = declaracionesHerramientas;
  * Ejecuta una herramienta por nombre.
  * Nunca lanza: los errores viajan al modelo como dato, para que pueda
  * explicar el problema al usuario en lenguaje natural.
+ *
+ * `contexto` incluye usuarioId, moneda y preferencias; las herramientas lo usan
+ * para personalizar precios y biblioteca.
  */
-export const ejecutarHerramienta = async (nombre, argumentos = {}) => {
+export const ejecutarHerramienta = async (nombre, argumentos = {}, contexto = {}) => {
   const ejecutor = ejecutores[nombre];
 
   if (!ejecutor) {
@@ -32,7 +43,7 @@ export const ejecutarHerramienta = async (nombre, argumentos = {}) => {
   }
 
   try {
-    const resultado = await ejecutor(argumentos ?? {});
+    const resultado = await ejecutor(argumentos ?? {}, contexto);
     return {
       respuesta: resultado.respuesta ?? { ok: true },
       widgets: resultado.widgets ?? [],

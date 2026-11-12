@@ -37,6 +37,13 @@ const normalizar = (texto = "") =>
     .replace(/\s+/g, " ")
     .trim();
 
+const porcentajePositivo = (juego) => {
+  const positivas = Number(juego.positive) || 0;
+  const negativas = Number(juego.negative) || 0;
+  if (positivas + negativas === 0) return null;
+  return Math.round((positivas / (positivas + negativas)) * 100);
+};
+
 /** Resumen de un juego: etiquetas, reseñas, jugadores y tiempo medio. */
 export const resumen = async (appid) => {
   const datos = await getJson(`${BASE}?request=appdetails&appid=${appid}`, {
@@ -52,16 +59,14 @@ export const resumen = async (appid) => {
     editor: datos.publisher,
     positivas: datos.positive,
     negativas: datos.negative,
-    porcentajePositivo:
-      datos.positive + datos.negative > 0
-        ? Math.round((datos.positive / (datos.positive + datos.negative)) * 100)
-        : null,
+    porcentajePositivo: porcentajePositivo(datos),
     propietarios: datos.owners,
     jugadoresAhora: datos.ccu,
     tiempoMedioMinutos: datos.average_forever,
+    medianaMinutos: datos.median_forever,
     etiquetas: Object.entries(datos.tags ?? {})
       .sort((a, b) => b[1] - a[1])
-      .slice(0, 8)
+      .slice(0, 10)
       .map(([etiqueta]) => etiqueta),
   };
 };
@@ -70,10 +75,14 @@ const mapearJuego = (j) => ({
   appid: j.appid,
   nombre: j.name,
   positivas: j.positive,
+  negativas: j.negative,
+  porcentajePositivo: porcentajePositivo(j),
   propietarios: propietariosMedios(j.owners),
   jugadoresAhora: j.ccu,
   precioCentavosUSD: Number(j.price) || 0,
   descuento: Number(j.discount) || 0,
+  tiempoMedioMinutos: Number(j.average_forever) || 0,
+  medianaMinutos: Number(j.median_forever) || 0,
 });
 
 const consultarEtiqueta = async (etiqueta) => {
@@ -97,8 +106,6 @@ export const porEtiqueta = async (etiqueta, limite = 8) => {
       // Probamos el siguiente alias.
     }
 
-    // Si la etiqueta original trae muy pocos resultados, es data incompleta:
-    // preferimos los alias (por ejemplo, "Roguelike" -> "Rogue-like").
     if (candidato === etiqueta && candidatos.length > 1 && encontrados.length < 4) {
       continue;
     }
@@ -116,18 +123,42 @@ export const porEtiqueta = async (etiqueta, limite = 8) => {
 };
 
 /** Los más jugados en las últimas dos semanas. */
-export const tendencia = async (limite = 8) => {
+export const tendencia = async (limite = 8) =>
+  (await masJugados({ limite })).map((j) => ({
+    appid: j.appid,
+    nombre: j.nombre,
+    jugadoresAhora: j.jugadoresAhora,
+    positivas: j.positivas,
+    negativas: j.negativas,
+  }));
+
+/** Top de jugadores concurrentes (últimas dos semanas). */
+export const masJugados = async ({ limite = 8 } = {}) => {
   const datos = await getJson(`${BASE}?request=top100in2weeks`, { ttlSegundos: 1800 });
 
   return Object.values(datos ?? {})
     .filter((j) => j?.name)
-    .map((j) => ({
-      appid: j.appid,
-      nombre: j.name,
-      jugadoresAhora: j.ccu,
-      positivas: j.positive,
-      negativas: j.negative,
-    }))
+    .map(mapearJuego)
     .sort((a, b) => b.jugadoresAhora - a.jugadoresAhora)
+    .slice(0, limite);
+};
+
+/**
+ * Juegos populares y cortos, a partir del top histórico.
+ * `horas` se compara contra la mediana de tiempo jugado.
+ */
+export const juegosCortos = async ({ horas = 8, precioMaximoUSD = 20, limite = 8 } = {}) => {
+  const datos = await getJson(`${BASE}?request=top100forever`, { ttlSegundos: 3600 });
+
+  return Object.values(datos ?? {})
+    .filter((j) => j?.name)
+    .map(mapearJuego)
+    .filter((j) => {
+      const minutos = j.medianaMinutos || j.tiempoMedioMinutos;
+      if (!minutos || minutos > horas * 60) return false;
+      if (j.precioCentavosUSD > precioMaximoUSD * 100) return false;
+      return (j.porcentajePositivo ?? 0) >= 75;
+    })
+    .sort((a, b) => b.propietarios - a.propietarios)
     .slice(0, limite);
 };

@@ -11,7 +11,89 @@ const formateadorPEN = new Intl.NumberFormat("es-PE", {
 /** Convierte centavos de sol a "S/ 53.00". */
 export const formatearPEN = (centavos) => formateadorPEN.format((centavos ?? 0) / 100);
 
-/** Steam devuelve precios en centavos de la moneda del país configurado. */
+export const limpiarHtml = (html = "") =>
+  String(html)
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/li>/gi, "\n")
+    .replace(/<li[^>]*>/gi, "• ")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n{2,}/g, "\n")
+    .trim();
+
+const parsearIdiomas = (html) => {
+  if (!html) return [];
+  return limpiarHtml(html)
+    .split(/[,;\n]/)
+    .map((parte) => parte.trim())
+    .filter((parte) => parte && !parte.startsWith("*"))
+    .map((parte) => {
+      const audio = parte.endsWith("*");
+      return {
+        idioma: parte.replace(/\*+$/g, "").trim(),
+        audio,
+      };
+    })
+    .filter((item) => item.idioma && !/idiomas con localizaci/i.test(item.idioma));
+};
+
+const EDAD_ESRB = { e: 6, e10: 10, t: 13, m: 17, ao: 18 };
+
+const parsearClasificaciones = (ratings = {}) => {
+  const clasificaciones = [];
+  let edadMinima = null;
+
+  for (const [sistema, info] of Object.entries(ratings)) {
+    const valor = info?.rating ?? "";
+    if (valor) {
+      clasificaciones.push({
+        sistema: sistema.toUpperCase().replace("_", " "),
+        valor: String(valor).toUpperCase(),
+        descriptores: String(info.descriptors ?? "")
+          .split(/\r?\n/)
+          .map((d) => d.trim())
+          .filter(Boolean),
+      });
+    }
+
+    if (sistema === "esrb" && EDAD_ESRB[String(valor).toLowerCase()]) {
+      edadMinima = Math.max(edadMinima ?? 0, EDAD_ESRB[String(valor).toLowerCase()]);
+    }
+  }
+
+  if (edadMinima == null) {
+    const numerica =
+      Number(ratings.pegi?.rating) ||
+      Number(ratings.dejus?.rating) ||
+      Number(ratings.igrs?.rating) ||
+      Number(ratings.usk?.rating) ||
+      null;
+    if (Number.isFinite(numerica) && numerica > 0) edadMinima = numerica;
+  }
+
+  return { clasificaciones, edadMinima };
+};
+
+const parsearRequisitos = (pc = {}) => ({
+  minimo: pc?.minimum ? limpiarHtml(pc.minimum) : null,
+  recomendado: pc?.recommended ? limpiarHtml(pc.recommended) : null,
+});
+
+const parsearPeliculas = (movies = []) =>
+  movies.slice(0, 3).map((movie) => ({
+    nombre: movie.name,
+    miniatura: movie.thumbnail,
+    mp4: movie.mp4?.["480"] ?? movie.mp4?.max ?? null,
+    webm: movie.webm?.["480"] ?? movie.webm?.max ?? null,
+    hls: movie.hls_h264 ?? null,
+  }));
+
 const mapearPrecio = (priceOverview, esGratis) => {
   if (esGratis) {
     return { texto: "Gratis", final: 0, inicial: 0, descuento: 100, moneda: "PEN" };
@@ -60,21 +142,29 @@ export const detalles = async (appid) => {
   }
 
   const d = entrada.data;
+  const idiomas = parsearIdiomas(d.supported_languages);
+  const { clasificaciones, edadMinima } = parsearClasificaciones(d.ratings);
+  const requisitos = parsearRequisitos(d.pc_requirements);
 
   return {
     appid: d.steam_appid,
     nombre: d.name,
     descripcion: d.short_description ?? "",
+    descripcionLarga: d.about_the_game ? limpiarHtml(d.about_the_game) : "",
     imagen: d.header_image,
     capsulas: d.screenshots?.slice(0, 2).map((s) => s.path_thumbnail) ?? [],
+    capturas: d.screenshots?.slice(0, 8).map((s) => s.path_full) ?? [],
+    peliculas: parsearPeliculas(d.movies),
     precio: mapearPrecio(d.price_overview, d.is_free),
     generos: (d.genres ?? []).map((g) => g.description),
+    categorias: (d.categories ?? []).map((c) => c.description),
     desarrollador: (d.developers ?? []).join(", "),
     editor: (d.publishers ?? []).join(", "),
     fecha: d.release_date?.date ?? null,
     proximo: Boolean(d.release_date?.coming_soon),
     metacritic: d.metacritic?.score ?? null,
     recomendaciones: d.recommendations?.total ?? null,
+    resenas: d.reviews ?? null,
     plataformas: {
       windows: Boolean(d.platforms?.windows),
       mac: Boolean(d.platforms?.mac),
@@ -82,10 +172,52 @@ export const detalles = async (appid) => {
     },
     tipo: d.type,
     gratis: Boolean(d.is_free),
+    idiomas,
+    tieneEspanol: idiomas.some((i) => /^español/i.test(i.idioma)),
+    audioEspanol: idiomas.some((i) => /^español/i.test(i.idioma) && i.audio),
+    clasificaciones,
+    edadMinima,
+    requisitos,
+    logros: d.achievements
+      ? { total: d.achievements.total ?? 0, destacados: d.achievements.highlighted ?? [] }
+      : { total: 0, destacados: [] },
+    dlc: d.dlc ?? [],
+    ediciones: (d.package_groups?.[0]?.subs ?? []).map((sub) => ({
+      texto: sub.option_text,
+      precio: sub.price_in_cents_with_discount != null ? sub.price_in_cents_with_discount / 100 : null,
+    })),
+    sitio: d.website ?? null,
   };
 };
 
-/** Ofertas, más vendidos y novedades destacadas (precios en soles). */
+/**
+ * Categoría de compatibilidad con Steam Deck.
+ * 1 = no compatible, 2 = jugable, 3 = verificado (0 = desconocido).
+ */
+export const compatibilidadDeck = async (appid) => {
+  try {
+    const datos = await getJson(
+      `https://store.steampowered.com/saleaction/ajaxgetdeckappcompatibilityreport?nAppID=${appid}`,
+      { ttlSegundos: 86400 }
+    );
+
+    if (!datos?.success) return null;
+
+    const codigo = Number(datos.results?.resolved_category ?? 0);
+    const etiquetas = {
+      0: "Desconocido",
+      1: "No compatible",
+      2: "Jugable",
+      3: "Verificado",
+    };
+
+    return { codigo, etiqueta: etiquetas[codigo] ?? "Desconocido" };
+  } catch {
+    return null;
+  }
+};
+
+/** Ofertas, más vendidos, novedades y próximos lanzamientos (precios en soles). */
 export const destacados = async () => {
   const datos = await getJson(
     `${BASE}/featuredcategories?cc=${config.steamCC}&l=${config.steamLang}`,
@@ -104,6 +236,7 @@ export const destacados = async () => {
       moneda: item.currency,
     },
     metacritic: null,
+    expira: item.discount_expiration ?? null,
   });
 
   return {

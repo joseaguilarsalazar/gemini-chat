@@ -72,6 +72,14 @@ export const declaracionesHerramientas = [
           type: Type.NUMBER,
           description: "Precio máximo en dólares (por defecto 20).",
         },
+        metacriticMinimo: {
+          type: Type.NUMBER,
+          description: "Puntuación mínima de Metacritic (ej. 80). Opcional.",
+        },
+        ratingMinimo: {
+          type: Type.NUMBER,
+          description: "Porcentaje mínimo de reseñas positivas en Steam (ej. 80). Opcional.",
+        },
         limite: {
           type: Type.INTEGER,
           description: "Cantidad de ofertas a devolver (máximo 10).",
@@ -184,5 +192,145 @@ export const declaracionesHerramientas = [
       "Devuelve estadísticas de la biblioteca: cuántos juegos hay por estado y qué juegos alcanzaron su precio objetivo. " +
       "Úsala cuando pregunten qué jugar, cuántos juegos tienen o si algún juego llegó a su precio.",
     parameters: { type: Type.OBJECT, properties: {} },
+  },
+  {
+    name: "ofertas_de_mi_biblioteca",
+    description:
+      "Busca ofertas en otras tiendas para los juegos que el usuario ya guardó (por defecto, solo deseados). " +
+      "Úsala cuando pregunten '¿algo de mi lista está en oferta?' o '¿dónde compro lo que quiero?'.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        soloDeseos: {
+          type: Type.BOOLEAN,
+          description: "Si es true, solo revisa la lista de deseados (por defecto true).",
+        },
+        limite: {
+          type: Type.INTEGER,
+          description: "Cantidad de juegos a revisar (máximo 8).",
+        },
+      },
+    },
+  },
+  {
+    name: "revisar_alertas",
+    description:
+      "Revisa y actualiza los precios de la biblioteca, y devuelve los juegos que alcanzaron su precio objetivo. " +
+      "Úsala cuando pidan 'revisa mis precios' o '¿bajó algo de mi lista?'.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        limite: {
+          type: Type.INTEGER,
+          description: "Cantidad de juegos a revisar (máximo 20).",
+        },
+      },
+    },
+  },
+  {
+    name: "juegos_similares",
+    description:
+      "Recomienda juegos parecidos a uno dado, usando sus etiquetas de Steam y excluyendo los que ya están en la biblioteca.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        appid,
+        limite: {
+          type: Type.INTEGER,
+          description: "Cantidad de recomendaciones (máximo 10).",
+        },
+      },
+      required: ["appid"],
+    },
+  },
+  {
+    name: "juegos_cortos",
+    description:
+      "Lista juegos populares y bien valorados que se pueden terminar en pocas horas. Útil para 'algo corto para el fin de semana'.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        horas: {
+          type: Type.NUMBER,
+          description: "Duración máxima estimada en horas (por defecto 8).",
+        },
+        precioMaximo: {
+          type: Type.NUMBER,
+          description: "Precio máximo en dólares (por defecto 20).",
+        },
+        limite: {
+          type: Type.INTEGER,
+          description: "Cantidad de juegos (máximo 10).",
+        },
+      },
+    },
+  },
+  {
+    name: "trailers_juego",
+    description:
+      "Muestra el tráiler y las capturas de un juego. Úsala cuando pidan ver cómo se juega o ver imágenes.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: { appid },
+      required: ["appid"],
+    },
+  },
+  {
+    name: "filtrar_catalogo",
+    description:
+      "Busca juegos populares aplicando filtros de idioma, edad máxima y precio en soles. " +
+      "Úsala para 'juegos en español', 'aptos para niños' o 'menos de S/ 50'.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        etiqueta: {
+          type: Type.STRING,
+          description: "Etiqueta de Steam en inglés (opcional). Si se omite, usa los más jugados.",
+        },
+        idioma: {
+          type: Type.STRING,
+          description: "Idioma requerido: 'español' (subtítulos) o 'audio español'. Por defecto 'español'.",
+        },
+        edadMaxima: {
+          type: Type.NUMBER,
+          description: "Edad mínima recomendada máxima (ej. 13). Opcional.",
+        },
+        precioMaximo: {
+          type: Type.NUMBER,
+          description: "Precio máximo en soles. Opcional.",
+        },
+        limite: {
+          type: Type.INTEGER,
+          description: "Cantidad de juegos (máximo 6).",
+        },
+      },
+    },
+  },
+  {
+    name: "proximos_lanzamientos",
+    description: "Muestra los próximos lanzamientos destacados de Steam con su fecha estimada.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        limite: {
+          type: Type.INTEGER,
+          description: "Cantidad de lanzamientos (máximo 8).",
+        },
+      },
+    },
+  },
+  {
+    name: "mas_jugados",
+    description:
+      "Muestra los juegos con más jugadores concurrentes ahora mismo. Úsala para 'qué está de moda' o 'qué juega todo el mundo'.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        limite: {
+          type: Type.INTEGER,
+          description: "Cantidad de juegos (máximo 10).",
+        },
+      },
+    },
   },
 ];
