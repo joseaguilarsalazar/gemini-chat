@@ -41,6 +41,7 @@
             <select id="proveedor-ia" class="select-ia" aria-label="Motor de IA"></select>
             <select id="nivel-ia" class="select-ia" aria-label="Nivel de razonamiento" hidden></select>
             <select id="moneda-ia" class="select-ia" aria-label="Moneda"></select>
+            <button id="btn-ajustes" class="btn-icono" type="button" title="Ajustes" aria-label="Ajustes">⚙</button>
           </div>
         </header>
 
@@ -57,6 +58,7 @@
               <button type="button" class="chip">¿Cuánto cuesta Hades en Perú?</button>
               <button type="button" class="chip">Recomiéndame un roguelike</button>
               <button type="button" class="chip">Muéstrame mi biblioteca</button>
+              <button type="button" class="chip">Dame mi resumen diario</button>
             </div>
           </section>
         </div>
@@ -79,6 +81,60 @@
     </div>
 
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+    <div id="panel-ajustes" class="panel-ajustes" hidden>
+      <div class="panel-fondo" data-cerrar-ajustes></div>
+      <aside class="panel-caja" role="dialog" aria-modal="true" aria-labelledby="titulo-ajustes">
+        <header class="panel-cabecera">
+          <h2 id="titulo-ajustes">Ajustes</h2>
+          <button type="button" class="panel-cerrar" id="cerrar-ajustes" aria-label="Cerrar">×</button>
+        </header>
+
+        <form id="form-ajustes" class="panel-cuerpo">
+          <section class="panel-seccion">
+            <h3>Tiendas</h3>
+            <label class="panel-check">
+              <input type="checkbox" id="solo-oficiales" />
+              Solo tiendas oficiales
+            </label>
+            <p class="panel-ayuda">
+              Si lo desactivas, puedes elegir tiendas concretas. Sin selección, se usan todas.
+            </p>
+            <div id="lista-tiendas" class="lista-tiendas"></div>
+          </section>
+
+          <section class="panel-seccion">
+            <h3>Mi PC</h3>
+            <div class="panel-grid">
+              <label>CPU<input id="pc-cpu" autocomplete="off" placeholder="Ryzen 5 5600" /></label>
+              <label>GPU<input id="pc-gpu" autocomplete="off" placeholder="RTX 3060" /></label>
+              <label>RAM<input id="pc-ram" autocomplete="off" placeholder="16 GB" /></label>
+              <label>Sistema<input id="pc-so" autocomplete="off" placeholder="Windows 11" /></label>
+            </div>
+          </section>
+
+          <section class="panel-seccion">
+            <h3>Notificaciones</h3>
+            <label class="panel-check">
+              <input type="checkbox" id="notificaciones-on" />
+              Avisarme cuando un deseo baje de precio
+            </label>
+            <button type="button" id="btn-permiso" class="btn-mini">Activar notificaciones del navegador</button>
+            <div class="panel-grid">
+              <label>Correo<input id="email" type="email" autocomplete="off" placeholder="tu@correo.com" /></label>
+              <label>Telegram chat ID<input id="telegram" autocomplete="off" placeholder="123456789" /></label>
+            </div>
+            <p class="panel-ayuda">
+              El correo y Telegram requieren configurar SMTP o un bot en el archivo .env.
+            </p>
+          </section>
+
+          <footer class="panel-pie">
+            <button type="submit" class="btn-enviar">Guardar ajustes</button>
+          </footer>
+        </form>
+      </aside>
+    </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/18.0.13/lib/marked.umd.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.4.15/purify.min.js"></script>

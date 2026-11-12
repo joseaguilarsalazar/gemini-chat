@@ -1,6 +1,7 @@
 import { declaracionesHerramientas } from "./definitions.js";
 import * as juegos from "./juegos.js";
 import * as biblioteca from "./biblioteca.js";
+import * as extras from "./extras.js";
 
 const ejecutores = {
   buscar_juegos: juegos.buscar,
@@ -23,6 +24,13 @@ const ejecutores = {
   filtrar_catalogo: juegos.filtrar,
   proximos_lanzamientos: juegos.proximos,
   mas_jugados: juegos.masJugados,
+  comparar_juegos: extras.compararJuegos,
+  analisis_biblioteca: extras.analisis,
+  requisitos_pc: extras.requisitosPc,
+  plan_finde: extras.planFinde,
+  ruleta_backlog: extras.ruleta,
+  dlc_juego: extras.dlcJuego,
+  resumen_diario: extras.resumenDiario,
 };
 
 export const herramientas = declaracionesHerramientas;

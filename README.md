@@ -29,6 +29,14 @@ conversación ni la biblioteca.
 - **Próximos lanzamientos** y **más jugados ahora**.
 - **Selector de moneda** (PEN/USD/EUR) que se aplica a los precios del chat.
 - **Exportación de la biblioteca** en CSV o Markdown.
+- **Comparador de 2–3 juegos** con precio, reseñas, duración y mínimo histórico.
+- **Análisis de biblioteca**: valor, ahorro objetivo, etiquetas favoritas y horas de backlog.
+- **¿Corre en mi PC?**: requisitos de Steam frente a las specs guardadas.
+- **Planificador de fin de semana** y **ruleta del backlog**.
+- **DLC y ediciones** con precios.
+- **Resumen diario** con alertas, ofertas, novedades y próximos lanzamientos.
+- **Notificaciones del navegador** cuando un deseo alcanza su precio objetivo.
+- **Ajustes**: moneda, tiendas preferidas, especificaciones del PC y canales de aviso.
 - **Comparación entre tiendas**: CheapShark aporta ofertas de ~35 tiendas en dólares y el mínimo histórico,
   con conversión referencial a soles.
 - **Ofertas del momento** filtradas por descuento y precio máximo.
@@ -154,6 +162,13 @@ OpenAI y acumula los `tool_calls` por índice; Gemini usa `functionDeclarations`
 | `filtrar_catalogo` | Filtra por idioma, edad máxima y precio | Steam + SteamSpy |
 | `proximos_lanzamientos` | Calendario de próximos estrenos | Steam featuredcategories |
 | `mas_jugados` | Ranking por jugadores concurrentes | SteamSpy |
+| `comparar_juegos` | Compara 2–3 juegos lado a lado | Steam + SteamSpy + CheapShark |
+| `analisis_biblioteca` | Valor, backlog, etiquetas y promedio | Biblioteca + SteamSpy |
+| `requisitos_pc` | Requisitos mínimos/recomendados + specs del usuario | Steam appdetails |
+| `plan_finde` | Plan de juegos según horas y género | Biblioteca + SteamSpy |
+| `ruleta_backlog` | Elige un juego al azar de la biblioteca | Biblioteca + Steam |
+| `dlc_juego` | DLC y ediciones con precios | Steam appdetails |
+| `resumen_diario` | Alertas, ofertas, noticias y lanzamientos | Todas las anteriores |
 
 ### Widgets
 
@@ -165,6 +180,12 @@ OpenAI y acumula los `tool_calls` por índice; Gemini usa `functionDeclarations`
 | `noticias` | Titulares con fecha y resumen | Abrir noticia |
 | `biblioteca` | Estadísticas + filas con estado, nota y alertas | Cambiar estado, precio objetivo, quitar, refrescar |
 | `media` | Reproductor de tráiler (HLS) + galería de capturas | Ver tráiler, abrir captura |
+| `comparativa` | Tabla lado a lado de 2–3 juegos | — |
+| `analisis` | Estadísticas y barras de etiquetas favoritas | — |
+| `requisitos` | Requisitos de Steam + especificaciones del usuario | — |
+| `dlc` | DLCs y ediciones con precios | — |
+| `plan` | Juegos elegidos para el tiempo disponible | — |
+| `digest` | Alertas, ofertas, noticias, próximos y oferta del día | Abrir enlaces |
 
 Los widgets guardados con el mensaje se reconstruyen al abrir una conversación antigua; los
 paneles de biblioteca se refrescan con el estado actual de la base de datos.
@@ -232,6 +253,8 @@ gemini-chat/
 | `GET` | `/api/preferencias` | Moneda, tiendas, PC y notificaciones |
 | `PATCH` | `/api/preferencias` | Actualiza las preferencias |
 | `GET` | `/api/tiendas` | Tiendas de CheapShark (con marca de oficial) |
+| `GET` | `/api/alertas` | Alertas de precio actuales |
+| `POST` | `/api/alertas/revisar` | Revisa precios y devuelve la biblioteca actualizada |
 
 ### Cuerpo de `POST /api/chat`
 

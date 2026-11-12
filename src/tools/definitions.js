@@ -333,4 +333,91 @@ export const declaracionesHerramientas = [
       },
     },
   },
+  {
+    name: "comparar_juegos",
+    description:
+      "Compara 2 o 3 juegos lado a lado: precio, descuento, Metacritic, reseñas, duración, etiquetas y mínimo histórico.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        appids: {
+          type: Type.ARRAY,
+          items: { type: Type.INTEGER },
+          description: "Entre 2 y 3 appids de Steam.",
+        },
+      },
+      required: ["appids"],
+    },
+  },
+  {
+    name: "analisis_biblioteca",
+    description:
+      "Analiza la biblioteca: valor actual, objetivo de ahorro, promedio de puntuaciones, horas de backlog y etiquetas favoritas.",
+    parameters: { type: Type.OBJECT, properties: {} },
+  },
+  {
+    name: "requisitos_pc",
+    description:
+      "Muestra los requisitos mínimos y recomendados de un juego y las especificaciones guardadas del usuario. " +
+      "Úsala para '¿corre en mi PC?' o '¿me alcanza la laptop?'.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: { appid },
+      required: ["appid"],
+    },
+  },
+  {
+    name: "plan_finde",
+    description:
+      "Arma un plan de fin de semana con juegos de la biblioteca, según las horas disponibles, el género y el estado.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        horas: {
+          type: Type.NUMBER,
+          description: "Horas disponibles (por defecto 6).",
+        },
+        genero: {
+          type: Type.STRING,
+          description: "Etiqueta o género deseado (ej. 'Roguelike', 'co-op'). Opcional.",
+        },
+        estado: {
+          type: Type.STRING,
+          enum: ["wishlist", "jugando", "terminado", "abandonado"],
+          description: "Filtrar por estado de la biblioteca. Opcional.",
+        },
+      },
+    },
+  },
+  {
+    name: "ruleta_backlog",
+    description:
+      "Elige un juego al azar de la biblioteca (por defecto, de los deseados) y muestra su ficha. Ideal para 'no sé qué jugar'.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        estado: {
+          type: Type.STRING,
+          enum: ["wishlist", "jugando", "terminado", "abandonado"],
+          description: "Estado del que elegir (por defecto wishlist).",
+        },
+      },
+    },
+  },
+  {
+    name: "dlc_juego",
+    description:
+      "Lista los DLC y las ediciones de compra de un juego, con sus precios.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: { appid },
+      required: ["appid"],
+    },
+  },
+  {
+    name: "resumen_diario",
+    description:
+      "Genera un resumen con alertas de precio, ofertas de la biblioteca, novedades de tus juegos, próximos lanzamientos y la oferta del día.",
+    parameters: { type: Type.OBJECT, properties: {} },
+  },
 ];

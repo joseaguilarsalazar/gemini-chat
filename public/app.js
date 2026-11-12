@@ -35,6 +35,20 @@ const el = {
   proveedor: document.getElementById("proveedor-ia"),
   nivel: document.getElementById("nivel-ia"),
   moneda: document.getElementById("moneda-ia"),
+  btnAjustes: document.getElementById("btn-ajustes"),
+  panelAjustes: document.getElementById("panel-ajustes"),
+  cerrarAjustes: document.getElementById("cerrar-ajustes"),
+  formAjustes: document.getElementById("form-ajustes"),
+  soloOficiales: document.getElementById("solo-oficiales"),
+  listaTiendas: document.getElementById("lista-tiendas"),
+  pcCpu: document.getElementById("pc-cpu"),
+  pcGpu: document.getElementById("pc-gpu"),
+  pcRam: document.getElementById("pc-ram"),
+  pcSo: document.getElementById("pc-so"),
+  notificacionesOn: document.getElementById("notificaciones-on"),
+  btnPermiso: document.getElementById("btn-permiso"),
+  email: document.getElementById("email"),
+  telegram: document.getElementById("telegram"),
   form: document.getElementById("form-chat"),
   ingreso: document.getElementById("ingreso"),
   enviar: document.getElementById("btn-enviar"),
@@ -53,6 +67,8 @@ const state = {
   proveedor: localStorage.getItem(CLAVE_PROVEEDOR) || null,
   nivel: localStorage.getItem(CLAVE_NIVEL) || null,
   moneda: "PEN",
+  prefs: null,
+  tiendas: [],
 };
 
 marked.setOptions({ gfm: true, breaks: true });
@@ -220,6 +236,7 @@ const cargarProveedores = (salud) => {
 const cargarPreferencias = async () => {
   try {
     const prefs = await api("/api/preferencias");
+    state.prefs = prefs;
     state.moneda = prefs.moneda ?? "PEN";
 
     el.moneda.replaceChildren();
@@ -230,6 +247,157 @@ const cargarPreferencias = async () => {
   } catch {
     el.moneda.replaceChildren(new Option(MONEDAS_UI.PEN, "PEN"));
     state.moneda = "PEN";
+  }
+};
+
+/* ---------------------------------------------------------------- ajustes */
+
+const CLAVE_ALERTAS_VISTAS = "gamescout:alertas-vistas";
+
+const renderTiendas = (prefs, tiendas) => {
+  el.listaTiendas.replaceChildren();
+
+  for (const tienda of tiendas.filter((t) => t.activa)) {
+    const etiqueta = document.createElement("label");
+    etiqueta.className = "tienda-opcion";
+
+    const input = document.createElement("input");
+    input.type = "checkbox";
+    input.value = tienda.id;
+    input.checked = prefs.tiendas.includes(tienda.id);
+
+    const nombre = document.createElement("span");
+    nombre.textContent = tienda.nombre;
+    etiqueta.append(input, nombre);
+
+    if (tienda.oficial) {
+      const badge = document.createElement("span");
+      badge.className = "badge-oficial";
+      badge.textContent = "Oficial";
+      etiqueta.append(badge);
+    }
+
+    el.listaTiendas.append(etiqueta);
+  }
+};
+
+const actualizarTiendasEstado = () => {
+  const deshabilitado = el.soloOficiales.checked;
+  el.listaTiendas.classList.toggle("deshabilitado", deshabilitado);
+  el.listaTiendas.querySelectorAll("input").forEach((input) => {
+    input.disabled = deshabilitado;
+  });
+};
+
+const cargarAjustes = async () => {
+  try {
+    const [prefs, tiendas] = await Promise.all([api("/api/preferencias"), api("/api/tiendas")]);
+    state.prefs = prefs;
+    state.tiendas = tiendas.tiendas;
+
+    el.soloOficiales.checked = prefs.soloOficiales;
+    el.notificacionesOn.checked = prefs.notificaciones;
+    el.pcCpu.value = prefs.pc.cpu;
+    el.pcGpu.value = prefs.pc.gpu;
+    el.pcRam.value = prefs.pc.ram;
+    el.pcSo.value = prefs.pc.so;
+    el.email.value = prefs.email;
+    el.telegram.value = prefs.telegramChatId;
+
+    renderTiendas(prefs, tiendas.tiendas);
+    actualizarTiendasEstado();
+  } catch (error) {
+    mostrarToast(error.message || "No se pudieron cargar los ajustes.", true);
+  }
+};
+
+const abrirAjustes = async () => {
+  await cargarAjustes();
+  el.panelAjustes.hidden = false;
+};
+
+const cerrarAjustes = () => {
+  el.panelAjustes.hidden = true;
+};
+
+const guardarAjustes = async (evento) => {
+  evento.preventDefault();
+
+  const tiendas = [...el.listaTiendas.querySelectorAll("input:checked")].map((i) => i.value);
+
+  try {
+    const datos = await api("/api/preferencias", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        soloOficiales: el.soloOficiales.checked,
+        tiendas,
+        pc: {
+          cpu: el.pcCpu.value,
+          gpu: el.pcGpu.value,
+          ram: el.pcRam.value,
+          so: el.pcSo.value,
+        },
+        notificaciones: el.notificacionesOn.checked,
+        email: el.email.value,
+        telegramChatId: el.telegram.value,
+      }),
+    });
+
+    state.prefs = datos;
+    state.moneda = datos.moneda;
+    el.moneda.value = datos.moneda;
+    mostrarToast("Ajustes guardados");
+    cerrarAjustes();
+  } catch (error) {
+    mostrarToast(error.message || "No se pudieron guardar los ajustes.", true);
+  }
+};
+
+const revisarAlertasNavegador = async () => {
+  if (!("Notification" in window) || Notification.permission !== "granted") return;
+
+  try {
+    const datos = await api("/api/alertas");
+    const vistas = new Set(JSON.parse(localStorage.getItem(CLAVE_ALERTAS_VISTAS) ?? "[]"));
+
+    for (const alerta of datos.alertas ?? []) {
+      const clave = `${alerta.appid}:${alerta.precioActual}`;
+      if (vistas.has(clave)) continue;
+      vistas.add(clave);
+
+      new Notification("GameScout · bajó de precio", {
+        body: `${alerta.nombre}: S/ ${Number(alerta.precioActual).toFixed(2)} (objetivo S/ ${Number(
+          alerta.precioObjetivo
+        ).toFixed(2)})`,
+        icon: "/favicon.svg",
+      });
+    }
+
+    localStorage.setItem(CLAVE_ALERTAS_VISTAS, JSON.stringify([...vistas].slice(-100)));
+  } catch {
+    // Sin conexión: se reintenta en el próximo ciclo.
+  }
+};
+
+const pedirPermisoNotificaciones = async () => {
+  if (!("Notification" in window)) {
+    mostrarToast("Tu navegador no soporta notificaciones.", true);
+    return;
+  }
+
+  if (Notification.permission === "granted") {
+    mostrarToast("Las notificaciones ya están activadas.");
+    await revisarAlertasNavegador();
+    return;
+  }
+
+  const permiso = await Notification.requestPermission();
+  if (permiso === "granted") {
+    mostrarToast("Notificaciones activadas");
+    await revisarAlertasNavegador();
+  } else {
+    mostrarToast("Permiso de notificaciones denegado.", true);
   }
 };
 
@@ -436,6 +604,7 @@ const SUGERENCIAS = [
   "¿Cuánto cuesta Hades en Perú?",
   "Recomiéndame un roguelike",
   "Muéstrame mi biblioteca",
+  "Dame mi resumen diario",
 ];
 
 const mostrarBienvenida = () => {
@@ -680,6 +849,34 @@ el.ventana.addEventListener("click", async (evento) => {
   const accion = boton.dataset.accion;
   if (accion === "nada") return;
 
+  if (accion === "revisar-precios") {
+    const original = boton.textContent;
+    boton.disabled = true;
+    boton.textContent = "Revisando…";
+
+    try {
+      const datos = await api("/api/alertas/revisar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ limite: 10 }),
+      });
+
+      sincronizarBiblioteca(datos.vista);
+      mostrarToast(
+        datos.alertas.length > 0
+          ? `${datos.alertas.length} alerta(s) de precio`
+          : "Precios revisados"
+      );
+      await revisarAlertasNavegador();
+    } finally {
+      if (boton.isConnected) {
+        boton.disabled = false;
+        boton.textContent = original;
+      }
+    }
+    return;
+  }
+
   const appid = Number(boton.dataset.appid || 0);
 
   try {
@@ -834,6 +1031,17 @@ el.moneda.addEventListener("change", async () => {
   }
 });
 
+el.btnAjustes.addEventListener("click", abrirAjustes);
+el.cerrarAjustes.addEventListener("click", cerrarAjustes);
+el.panelAjustes.querySelector("[data-cerrar-ajustes]").addEventListener("click", cerrarAjustes);
+el.formAjustes.addEventListener("submit", guardarAjustes);
+el.soloOficiales.addEventListener("change", actualizarTiendasEstado);
+el.btnPermiso.addEventListener("click", pedirPermisoNotificaciones);
+
+document.addEventListener("keydown", (evento) => {
+  if (evento.key === "Escape" && !el.panelAjustes.hidden) cerrarAjustes();
+});
+
 el.nueva.addEventListener("click", () => {
   if (state.enviando) return;
   limpiarSesion();
@@ -858,6 +1066,11 @@ const iniciar = async () => {
   } else {
     mostrarBienvenida();
   }
+
+  if ("Notification" in window && Notification.permission === "granted") {
+    revisarAlertasNavegador();
+  }
+  window.setInterval(revisarAlertasNavegador, 5 * 60 * 1000);
 
   el.ingreso.focus();
 };

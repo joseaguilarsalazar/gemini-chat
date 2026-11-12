@@ -118,7 +118,8 @@ export const agregar = async (
     estado: estadoFinal,
     precioActual,
     etiquetas: info?.etiquetas?.slice(0, 8) ?? existente?.etiquetas ?? null,
-    tiempoMedio: info?.tiempoMedioMinutos ?? existente?.tiempoMedio ?? null,
+    tiempoMedio:
+      info?.medianaMinutos || info?.tiempoMedioMinutos || existente?.tiempoMedio || null,
   });
 
   if (precioObjetivo != null) {

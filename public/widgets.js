@@ -539,6 +539,7 @@ const construirBiblioteca = (datos) => {
   const accionesCabecera = el("div", "biblio-cabecera-acciones");
   accionesCabecera.append(enlaceDescarga("CSV", "/api/biblioteca/export?formato=csv"));
   accionesCabecera.append(enlaceDescarga("MD", "/api/biblioteca/export?formato=md"));
+  accionesCabecera.append(botonAccion("Revisar precios", "revisar-precios"));
   accionesCabecera.append(botonAccion("Actualizar", "refrescar"));
   cabecera.append(accionesCabecera);
   seccion.append(cabecera);
@@ -639,6 +640,413 @@ const construirBiblioteca = (datos) => {
   return seccion;
 };
 
+// ---------------------------------------------------------------- comparativa
+
+const construirComparativa = (datos) => {
+  const seccion = el("section", "widget comparativa");
+  seccion.dataset.widget = "comparativa";
+
+  const titulo = el("h3");
+  titulo.textContent = "Comparativa de juegos";
+  seccion.append(titulo);
+
+  if (!datos.juegos?.length) return seccion;
+
+  const tabla = el("table", "tabla-comparativa");
+  const thead = el("thead");
+  const filaHead = el("tr");
+  filaHead.append(el("th"));
+  for (const juego of datos.juegos) {
+    const th = el("th");
+    th.textContent = juego.nombre;
+    filaHead.append(th);
+  }
+  thead.append(filaHead);
+  tabla.append(thead);
+
+  const filas = [
+    ["Precio", (j) => j.precioTexto],
+    ["Descuento", (j) => (j.descuento ? `-${j.descuento}%` : "—")],
+    ["Metacritic", (j) => j.metacritic ?? "—"],
+    ["Reseñas", (j) => (j.porcentajePositivo != null ? `${j.porcentajePositivo}%` : "—")],
+    ["Duración", (j) => (j.horas ? `≈ ${j.horas} h` : "—")],
+    ["Mínimo histórico", (j) => j.historicoTexto ?? "—"],
+    ["Etiquetas", (j) => j.etiquetas?.join(", ") || "—"],
+  ];
+
+  const tbody = el("tbody");
+  for (const [etiqueta, valor] of filas) {
+    const fila = el("tr");
+    const th = el("th");
+    th.textContent = etiqueta;
+    fila.append(th);
+    for (const juego of datos.juegos) {
+      const td = el("td");
+      td.textContent = valor(juego);
+      fila.append(td);
+    }
+    tbody.append(fila);
+  }
+  tabla.append(tbody);
+  seccion.append(tabla);
+
+  return seccion;
+};
+
+// ---------------------------------------------------------------- análisis
+
+const construirAnalisis = (datos) => {
+  const seccion = el("section", "widget analisis");
+  seccion.dataset.widget = "analisis";
+
+  const titulo = el("h3");
+  titulo.textContent = "Análisis de tu biblioteca";
+  seccion.append(titulo);
+
+  const stats = el("div", "biblio-stats");
+  const items = [
+    ["Total", datos.total],
+    ["Jugando", datos.estados?.jugando ?? 0],
+    ["Terminados", datos.estados?.terminado ?? 0],
+    ["Deseados", datos.estados?.wishlist ?? 0],
+    ["Backlog", `${datos.horasBacklog ?? 0} h`],
+    ["Valor", datos.valorTexto ?? "—"],
+    ["Promedio", datos.promedio ? `${datos.promedio}/10` : "—"],
+    ["Alertas", datos.alertas ?? 0],
+  ];
+  for (const [etiqueta, valor] of items) {
+    const stat = el("div", "biblio-stat");
+    const numero = el("strong");
+    numero.textContent = String(valor ?? "—");
+    const texto = el("span");
+    texto.textContent = etiqueta;
+    stat.append(numero, texto);
+    stats.append(stat);
+  }
+  seccion.append(stats);
+
+  if (datos.etiquetas?.length) {
+    const bloque = el("div", "analisis-etiquetas");
+    const subtitulo = el("h4");
+    subtitulo.textContent = "Tus etiquetas favoritas";
+    bloque.append(subtitulo);
+
+    const maximo = Math.max(...datos.etiquetas.map((e) => e.total), 1);
+    for (const etiqueta of datos.etiquetas) {
+      const fila = el("div", "barra-etiqueta");
+      const nombre = el("span");
+      nombre.textContent = etiqueta.nombre;
+      const barra = el("div", "barra");
+      const relleno = el("div", "barra-relleno");
+      relleno.style.width = `${Math.max(6, (etiqueta.total / maximo) * 100)}%`;
+      barra.append(relleno);
+      const total = el("span", "barra-total");
+      total.textContent = String(etiqueta.total);
+      fila.append(nombre, barra, total);
+      bloque.append(fila);
+    }
+    seccion.append(bloque);
+  }
+
+  const nota = el("p", "widget-nota");
+  nota.textContent = `Valor actual ${datos.valorTexto ?? "—"} · objetivo de ahorro ${
+    datos.objetivoTexto ?? "—"
+  }. Las horas de backlog son una estimación de SteamSpy.`;
+  seccion.append(nota);
+
+  return seccion;
+};
+
+// ---------------------------------------------------------------- requisitos
+
+const construirRequisitos = (datos) => {
+  const seccion = el("section", "widget requisitos");
+  seccion.dataset.widget = "requisitos";
+
+  const titulo = el("h3");
+  titulo.textContent = `Requisitos de ${datos.nombre ?? "el juego"}`;
+  seccion.append(titulo);
+
+  const grid = el("div", "requisitos-grid");
+  const bloque = (tituloBloque, texto) => {
+    const div = el("div", "requisitos-bloque");
+    const h4 = el("h4");
+    h4.textContent = tituloBloque;
+    const p = el("p", "requisitos-texto");
+    p.textContent = texto || "No publicado por Steam.";
+    div.append(h4, p);
+    return div;
+  };
+
+  grid.append(bloque("Mínimo", datos.requisitos?.minimo));
+  grid.append(bloque("Recomendado", datos.requisitos?.recomendado));
+  seccion.append(grid);
+
+  const pc = el("div", "requisitos-pc");
+  const h4 = el("h4");
+  h4.textContent = "Tu PC";
+  pc.append(h4);
+
+  if (datos.tienePc) {
+    const lista = el("ul", "requisitos-lista");
+    const partes = [
+      ["CPU", datos.pc?.cpu],
+      ["GPU", datos.pc?.gpu],
+      ["RAM", datos.pc?.ram],
+      ["Sistema", datos.pc?.so],
+    ].filter(([, valor]) => valor);
+    for (const [etiqueta, valor] of partes) {
+      const li = el("li");
+      const strong = el("strong");
+      strong.textContent = `${etiqueta}: `;
+      li.append(strong, document.createTextNode(valor));
+      lista.append(li);
+    }
+    pc.append(lista);
+  } else {
+    const aviso = el("p", "widget-nota");
+    aviso.textContent =
+      "Configura tu CPU, GPU, RAM y sistema en Ajustes para que el asistente pueda comparar.";
+    pc.append(aviso);
+  }
+
+  seccion.append(pc);
+  return seccion;
+};
+
+// ---------------------------------------------------------------- DLC
+
+const construirDlc = (datos) => {
+  const seccion = el("section", "widget");
+  seccion.dataset.widget = "dlc";
+
+  const titulo = el("h3");
+  titulo.textContent = `DLC y ediciones de ${datos.nombre ?? "el juego"}`;
+  seccion.append(titulo);
+
+  if (datos.ediciones?.length) {
+    const subtitulo = el("h4", "subtitulo-widget");
+    subtitulo.textContent = "Ediciones";
+    seccion.append(subtitulo);
+
+    const lista = el("ul", "dlc-lista");
+    for (const edicion of datos.ediciones) {
+      const li = el("li", "dlc-item");
+      const nombre = el("span");
+      nombre.textContent = edicion.texto;
+      const precio = el("strong");
+      precio.textContent = edicion.precioTexto ?? "";
+      li.append(nombre, precio);
+      lista.append(li);
+    }
+    seccion.append(lista);
+  }
+
+  if (datos.dlcs?.length) {
+    const subtitulo = el("h4", "subtitulo-widget");
+    subtitulo.textContent = "DLC";
+    seccion.append(subtitulo);
+
+    const lista = el("ul", "dlc-lista");
+    for (const dlc of datos.dlcs) {
+      const li = el("li", "dlc-item");
+      const img = imagen(dlc.imagen, dlc.nombre, "dlc-img");
+      if (img) li.append(img);
+
+      const info = el("div", "dlc-info");
+      const nombre = el("span", "dlc-nombre");
+      nombre.textContent = dlc.nombre;
+      const meta = el("small");
+      meta.textContent = [dlc.fecha, dlc.descuento ? `-${dlc.descuento}%` : null]
+        .filter(Boolean)
+        .join(" · ");
+      info.append(nombre, meta);
+      li.append(info);
+
+      const precio = el("strong");
+      precio.textContent = dlc.precioTexto ?? "—";
+      li.append(precio);
+      lista.append(li);
+    }
+    seccion.append(lista);
+  }
+
+  return seccion;
+};
+
+// ---------------------------------------------------------------- plan
+
+const construirPlan = (datos) => {
+  const seccion = el("section", "widget plan");
+  seccion.dataset.widget = "plan";
+
+  const titulo = el("h3");
+  titulo.textContent = `Plan para ${datos.horasDisponibles ?? "?"} horas`;
+  seccion.append(titulo);
+
+  const resumen = el("p", "widget-subtitulo");
+  resumen.textContent = `${datos.juegos?.length ?? 0} juegos · ${datos.totalHoras ?? 0} h estimadas`;
+  seccion.append(resumen);
+
+  const lista = el("div", "plan-lista");
+  for (const juego of datos.juegos ?? []) {
+    const item = el("article", "plan-item");
+    const img = imagen(juego.imagen, juego.nombre, "plan-img");
+    if (img) item.append(img);
+
+    const info = el("div", "plan-info");
+    const nombre = el("h4");
+    nombre.textContent = juego.nombre;
+    const meta = el("p", "plan-meta");
+    meta.textContent = [
+      `${juego.horas} h`,
+      juego.puntuacion ? `${juego.puntuacion}/10` : null,
+      juego.estado,
+    ]
+      .filter(Boolean)
+      .join(" · ");
+    info.append(nombre, meta);
+
+    if (juego.etiquetas?.length) {
+      const chips = el("div", "ficha-etiquetas");
+      for (const etiqueta of juego.etiquetas) {
+        const chip = el("span", "chip-etiqueta");
+        chip.textContent = etiqueta;
+        chips.append(chip);
+      }
+      info.append(chips);
+    }
+
+    item.append(info);
+    lista.append(item);
+  }
+  seccion.append(lista);
+
+  return seccion;
+};
+
+// ---------------------------------------------------------------- digest
+
+const construirDigest = (datos) => {
+  const seccion = el("section", "widget digest");
+  seccion.dataset.widget = "digest";
+
+  const titulo = el("h3");
+  titulo.textContent = "Tu resumen";
+  seccion.append(titulo);
+
+  const grid = el("div", "digest-grid");
+
+  const bloque = (tituloBloque, contenido, vacio) => {
+    const div = el("section", "digest-bloque");
+    const h4 = el("h4");
+    h4.textContent = tituloBloque;
+    div.append(h4);
+    if (contenido) div.append(contenido);
+    else {
+      const p = el("p", "widget-nota");
+      p.textContent = vacio;
+      div.append(p);
+    }
+    return div;
+  };
+
+  // Alertas
+  let alertas = null;
+  if (datos.alertas?.length) {
+    alertas = el("ul", "digest-lista");
+    for (const alerta of datos.alertas) {
+      const li = el("li");
+      const strong = el("strong");
+      strong.textContent = `${alerta.nombre}: `;
+      li.append(strong, document.createTextNode(`${alerta.precioActual} (objetivo ${alerta.precioObjetivo})`));
+      alertas.append(li);
+    }
+  }
+  grid.append(bloque("Alertas de precio", alertas, "Ningún juego alcanzó su objetivo."));
+
+  // Ofertas de la biblioteca
+  let ofertas = null;
+  if (datos.ofertas?.length) {
+    ofertas = el("ul", "digest-lista");
+    for (const oferta of datos.ofertas) {
+      const li = el("li");
+      const link = enlace(oferta.nombre, oferta.enlace);
+      if (link) {
+        link.className = "digest-link";
+        li.append(link);
+      } else {
+        const strong = el("strong");
+        strong.textContent = oferta.nombre;
+        li.append(strong);
+      }
+      const detalle = el("span", "digest-detalle");
+      detalle.textContent = `${oferta.precioTexto} · ${oferta.notaPrecio ?? ""}`;
+      li.append(detalle);
+      ofertas.append(li);
+    }
+  }
+  grid.append(bloque("Ofertas de tu lista", ofertas, "Sin ofertas más baratas que Steam."));
+
+  // Noticias
+  let noticias = null;
+  if (datos.noticias?.length) {
+    noticias = el("div", "digest-noticias");
+    for (const grupo of datos.noticias) {
+      const h5 = el("h5");
+      h5.textContent = grupo.nombre;
+      noticias.append(h5);
+      const lista = el("ul", "digest-lista");
+      for (const noticia of grupo.noticias) {
+        const li = el("li");
+        const link = enlace(noticia.titulo, noticia.url);
+        if (link) {
+          link.className = "digest-link";
+          li.append(link);
+        } else {
+          li.textContent = noticia.titulo;
+        }
+        lista.append(li);
+      }
+      noticias.append(lista);
+    }
+  }
+  grid.append(bloque("Novedades de tus juegos", noticias, "Sin novedades recientes."));
+
+  // Próximos
+  let proximos = null;
+  if (datos.proximos?.length) {
+    proximos = el("ul", "digest-lista");
+    for (const juego of datos.proximos) {
+      const li = el("li");
+      li.textContent = juego.nombre;
+      proximos.append(li);
+    }
+  }
+  grid.append(bloque("Próximos lanzamientos", proximos, "Sin lanzamientos destacados."));
+
+  // Oferta del día
+  let destacada = null;
+  if (datos.ofertaDelDia) {
+    destacada = el("div", "digest-destacada");
+    const img = imagen(datos.ofertaDelDia.imagen, datos.ofertaDelDia.nombre, "digest-img");
+    if (img) destacada.append(img);
+    const info = el("div");
+    const nombre = el("strong");
+    nombre.textContent = datos.ofertaDelDia.nombre;
+    const detalle = el("p", "widget-nota");
+    detalle.textContent = `${datos.ofertaDelDia.precioTexto} · ${datos.ofertaDelDia.tienda}`;
+    const link = enlace("Ver oferta", datos.ofertaDelDia.enlace);
+    info.append(nombre, detalle);
+    if (link) info.append(link);
+    destacada.append(info);
+  }
+  grid.append(bloque("Oferta del día", destacada, "Sin oferta destacada."));
+
+  seccion.append(grid);
+  return seccion;
+};
+
 // ---------------------------------------------------------------- registro
 
 const constructores = {
@@ -648,6 +1056,12 @@ const constructores = {
   noticias: construirNoticias,
   biblioteca: construirBiblioteca,
   media: construirMedia,
+  comparativa: construirComparativa,
+  analisis: construirAnalisis,
+  requisitos: construirRequisitos,
+  dlc: construirDlc,
+  plan: construirPlan,
+  digest: construirDigest,
 };
 
 const construir = (widget) => {
