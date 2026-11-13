@@ -1,0 +1,24 @@
+node_modules
+data
+.git
+.gitignore
+
+# credenciales: se pasan por env_file en docker compose
+.env
+.env.*
+!.env.example
+
+# documentación y archivos locales
+README.md
+ANALISIS-PROYECTO.md
+guion.txt
+*.log
+npm-debug.log*
+
+# sistema / editores
+.DS_Store
+Thumbs.db
+.vscode
+.idea
+coverage
+tests

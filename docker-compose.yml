@@ -1,0 +1,52 @@
+name: gamescout
+
+services:
+  gamescout:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: gamescout:latest
+    container_name: gamescout
+    init: true
+    restart: unless-stopped
+
+    # Las claves y la configuración salen del .env del proyecto.
+    env_file:
+      - .env
+
+    # Dentro del contenedor la base vive en /app/data (volumen nombrado).
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 3000
+      DB_PATH: /app/data/chat.db
+      APP_URL: ${APP_URL:-http://localhost:3000}
+
+    ports:
+      # Cambia PORT en .env si el 3000 está ocupado en tu máquina.
+      - "${PORT:-3000}:3000"
+
+    volumes:
+      - gamescout-data:/app/data
+
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+    stop_grace_period: 10s
+
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  gamescout-data:
+    name: gamescout-data

@@ -90,6 +90,36 @@ Prueba cualquiera de estas frases:
 - `Recomiéndame un roguelike`
 - `Muéstrame mi biblioteca`
 
+## Docker
+
+El proyecto incluye `Dockerfile` y `docker-compose.yml` con una imagen multi-stage
+(Node 24 + Debian slim) y un volumen para la base de datos.
+
+```bash
+cp .env.example .env      # Windows: copy .env.example .env
+# edita .env y coloca tus API keys
+docker compose up --build -d
+```
+
+Abre http://localhost:3000. La primera vez verás la pantalla de **crear cuenta**.
+
+```bash
+docker compose ps          # estado y healthcheck
+docker compose logs -f     # logs en vivo
+docker compose down        # detener (conserva la base)
+```
+
+- La base de datos vive en el volumen **`gamescout-data`** y sobrevive a
+  `docker compose down`.
+- Para borrar también la base: `docker compose down -v` (irreversible).
+- Si el puerto 3000 está ocupado, cambia `PORT=3001` en `.env`; el contenedor
+  seguirá escuchando en 3000 y Docker mapeará `3001:3000`.
+- El contenedor corre como usuario `node` (no root) y tiene
+  `no-new-privileges` habilitado.
+- `better-sqlite3` se compila en la etapa de build; la imagen final no incluye
+  compiladores.
+- Para reconstruir tras cambiar dependencias: `docker compose build --no-cache`.
+
 ## Variables de entorno
 
 | Variable | Por defecto | Descripción |
